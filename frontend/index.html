@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>HVAC Salesman Q&A</title>
+<style>
+  :root{
+    --bg:#f6f5f2;
+    --panel:#ffffff;
+    --ink:#22261f;
+    --muted:#6b6f66;
+    --border:#e2e0d8;
+    --accent:#2d6a4f;
+    --accent-ink:#ffffff;
+    --bubble-user:#2d6a4f;
+    --bubble-bot:#eef0ea;
+    --warn-bg:#fdf3e7;
+    --warn-border:#e8c99a;
+    --warn-ink:#7a4a12;
+    --bad-bg:#fbeaea;
+    --bad-border:#e8b4b4;
+    --bad-ink:#8a2e2e;
+    --good-bg:#eaf4ee;
+    --good-border:#b7d9c4;
+    --good-ink:#1f5c3a;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding:14px 18px 10px 18px;
+    border-bottom:1px solid var(--border);
+    background:var(--panel);
+  }
+  header h1{
+    font-size:1.05rem;
+    margin:0 0 2px 0;
+    font-weight:700;
+  }
+  header p{
+    margin:0;
+    font-size:.78rem;
+    color:var(--muted);
+  }
+  #status-banner{
+    display:none;
+    background:var(--warn-bg);
+    border-bottom:1px solid var(--warn-border);
+    color:var(--warn-ink);
+    font-size:.78rem;
+    padding:8px 18px;
+    line-height:1.4;
+  }
+  #status-banner.show{display:block;}
+
+  .tabs{
+    display:flex;
+    border-bottom:1px solid var(--border);
+    background:var(--panel);
+  }
+  .tab-btn{
+    flex:1;
+    padding:11px 8px;
+    border:none;
+    background:none;
+    font-size:.85rem;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+  }
+  .tab-btn.active{
+    color:var(--accent);
+    border-bottom-color:var(--accent);
+  }
+
+  main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    max-width:640px;
+    width:100%;
+    margin:0 auto;
+  }
+  .view{display:none; flex:1; flex-direction:column; overflow:hidden;}
+  .view.active{display:flex;}
+
+  /* Chat view */
+  #chat-log{
+    flex:1;
+    overflow-y:auto;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .msg{
+    max-width:85%;
+    padding:10px 13px;
+    border-radius:14px;
+    font-size:.92rem;
+    line-height:1.45;
+    white-space:pre-wrap;
+  }
+  .msg.user{
+    align-self:flex-end;
+    background:var(--bubble-user);
+    color:var(--accent-ink);
+    border-bottom-right-radius:4px;
+  }
+  .msg.bot{
+    align-self:flex-start;
+    background:var(--bubble-bot);
+    color:var(--ink);
+    border-bottom-left-radius:4px;
+  }
+  .msg.error{
+    align-self:center;
+    background:var(--warn-bg);
+    border:1px solid var(--warn-border);
+    color:var(--warn-ink);
+  }
+  .msg.searching{
+    align-self:flex-start;
+    color:var(--muted);
+    font-style:italic;
+    font-size:.85rem;
+  }
+  .tag{
+    display:inline-block;
+    font-size:.68rem;
+    font-weight:700;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:4px;
+  }
+  #chat-input-row{
+    display:flex;
+    gap:8px;
+    padding:12px;
+    border-top:1px solid var(--border);
+    background:var(--panel);
+  }
+  #chat-input{
+    flex:1;
+    border:1.5px solid var(--border);
+    border-radius:22px;
+    padding:11px 16px;
+    font-size:.92rem;
+    outline:none;
+    resize:none;
+    font-family:inherit;
+  }
+  #chat-input:focus{border-color:var(--accent);}
+  #chat-send{
+    border:none;
+    background:var(--accent);
+    color:var(--accent-ink);
+    border-radius:22px;
+    padding:0 18px;
+    font-size:.9rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+  #chat-send:disabled{opacity:.5; cursor:default;}
+
+  /* Wizard view */
+  #wizard-progress{
+    padding:10px 18px 0 18px;
+    font-size:.72rem;
+    color:var(--muted);
+    font-weight:600;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+  }
+  #wizard-body{
+    flex:1;
+    overflow-y:auto;
+    padding:14px 18px 18px 18px;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .card h2{font-size:1rem; margin:0 0 6px 0;}
+  .card .sub{font-size:.82rem; color:var(--muted); margin:0 0 14px 0; line-height:1.45;}
+  .field-label{
+    display:block;
+    font-size:.78rem;
+    font-weight:600;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  input[type="text"], input[type="number"], select, textarea{
+    width:100%;
+    border:1.5px solid var(--border);
+    border-radius:8px;
+    padding:9px 12px;
+    font-size:.92rem;
+    font-family:inherit;
+    outline:none;
+    margin-bottom:14px;
+    background:#fff;
+    color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:60px;}
+  input:focus, select:focus, textarea:focus{border-color:var(--accent);}
+
+  .result-box{
+    background:var(--bubble-bot);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:.88rem;
+    line-height:1.5;
+    white-space:pre-wrap;
+    margin-bottom:14px;
+  }
+  .result-box.warn{background:var(--warn-bg); border:1px solid var(--warn-border); color:var(--warn-ink);}
+  .result-box.good{background:var(--good-bg); border:1px solid var(--good-border); color:var(--good-ink);}
+  .result-box.bad{background:var(--bad-bg); border:1px solid var(--bad-border); color:var(--bad-ink);}
+
+  .stat-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .stat{
+    flex:1;
+    min-width:120px;
+    background:var(--bubble-bot);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .stat .num{font-size:1.25rem; font-weight:700;}
+  .stat .lbl{font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+
+  .btn{
+    border:none;
+    border-radius:10px;
+    padding:12px;
+    font-size:.92rem;
+    font-weight:600;
+    cursor:pointer;
+    width:100%;
+  }
+  .btn-primary{background:var(--accent); color:var(--accent-ink);}
+  .btn-primary:disabled{opacity:.5; cursor:default;}
+  .btn-secondary{background:var(--bubble-bot); color:var(--ink); margin-top:8px;}
+  .btn-row{display:flex; gap:10px;}
+  .btn-row .btn{flex:1;}
+
+  .photo-btn{
+    display:block;
+    width:100%;
+    text-align:center;
+    border:1.5px dashed var(--border);
+    border-radius:10px;
+    padding:20px 12px;
+    color:var(--muted);
+    font-size:.85rem;
+    cursor:pointer;
+    background:#fafaf7;
+    margin-bottom:10px;
+  }
+  .photo-btn:hover{border-color:var(--accent); color:var(--accent);}
+  .preview-wrap img{
+    max-width:100%;
+    border-radius:10px;
+    border:1px solid var(--border);
+    display:block;
+    margin-bottom:10px;
+  }
+
+  .rating-row{display:flex; gap:8px; margin-bottom:10px;}
+  .rating-btn{
+    flex:1;
+    padding:10px 4px;
+    border-radius:9px;
+    border:1.5px solid var(--border);
+    background:#fff;
+    font-size:.8rem;
+    font-weight:600;
+    cursor:pointer;
+    color:var(--muted);
+  }
+  .rating-btn.selected.good{background:var(--good-bg); border-color:var(--good-border); color:var(--good-ink);}
+  .rating-btn.selected.warn{background:var(--warn-bg); border-color:var(--warn-border); color:var(--warn-ink);}
+  .rating-btn.selected.bad{background:var(--bad-bg); border-color:var(--bad-border); color:var(--bad-ink);}
+
+  .duct-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin-bottom:6px;}
+  .duct-grid label{font-size:.82rem; color:var(--ink);}
+  .duct-grid input{margin-bottom:0;}
+
+  .summary-item{padding:10px 0; border-bottom:1px solid var(--border);}
+  .summary-item:last-child{border-bottom:none;}
+  .summary-item .k{font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); font-weight:600;}
+  .summary-item .v{font-size:.9rem; margin-top:2px; white-space:pre-wrap;}
+
+  .landing{padding:18px;}
+  .landing .card{text-align:center;}
+  .landing .card p{color:var(--muted); font-size:.85rem; margin:0 0 14px 0;}
+
+  /* Quote step */
+  .qview-toggle{display:flex; gap:8px; margin-bottom:12px;}
+  .qview-btn{flex:1; padding:8px; border-radius:8px; border:1.5px solid var(--border); background:#fff; font-size:.8rem; font-weight:600; color:var(--muted); cursor:pointer;}
+  .qview-btn.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .margin-row{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .margin-row label{font-size:.82rem; font-weight:600; white-space:nowrap;}
+  .margin-row input{margin-bottom:0; width:80px;}
+  .qtable{width:100%; border-collapse:collapse; font-size:.82rem; margin-bottom:12px;}
+  .qtable th{text-align:left; font-size:.68rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); padding:6px 4px; border-bottom:1.5px solid var(--border);}
+  .qtable td{padding:7px 4px; border-bottom:1px solid var(--border); vertical-align:top;}
+  .qtable td.r, .qtable th.r{text-align:right;}
+  .qtable input[type="number"]{width:70px; margin-bottom:0; padding:5px 6px; font-size:.8rem;}
+  .qtable .qname{font-weight:600;}
+  .qtable .qauto{font-size:.68rem; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.02em;}
+  .qtable .qrm{background:none; border:none; color:var(--bad-ink); cursor:pointer; font-size:1rem; padding:2px 6px;}
+  .qtotals{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0;}
+  .qtotals .stat{flex:1; min-width:90px;}
+  .add-svc-wrap{position:relative; margin-bottom:14px;}
+  .add-svc-results{border:1.5px solid var(--border); border-radius:8px; max-height:220px; overflow-y:auto; background:#fff; margin-top:-8px; margin-bottom:14px;}
+  .add-svc-item{padding:9px 12px; font-size:.83rem; cursor:pointer; border-bottom:1px solid var(--border);}
+  .add-svc-item:last-child{border-bottom:none;}
+  .add-svc-item:hover{background:var(--bubble-bot);}
+  .photo-required-note{font-size:.72rem; color:var(--bad-ink); margin:-6px 0 10px 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>HVAC Salesman Q&amp;A</h1>
+  <p>Home visit walkthrough &amp; field reference assistant</p>
+</header>
+
+<div id="status-banner"></div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-view="wizard-view">Home Visit</button>
+  <button class="tab-btn" data-view="chat-view">Ask a Question</button>
+</div>
+
+<script src="pricing-catalog.js"></script>
+<main>
+
+  <!-- ============ HOME VISIT WIZARD ============ -->
+  <section id="wizard-view" class="view active">
+    <div id="wizard-progress"></div>
+    <div id="wizard-body"></div>
+  </section>
+
+  <!-- ============ CHAT ============ -->
+  <section id="chat-view" class="view">
+    <div id="chat-log"></div>
+    <div id="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="e.g. What size furnace for a 1,800 sqft home?"></textarea>
+      <button id="chat-send">Send</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================
+   SHARED
+   ============================================================ */
+const statusBanner = document.getElementById('status-banner');
+
+fetch('/api/status').then(r => r.json()).then(d => {
+  if (!d.api_key_configured) {
+    statusBanner.textContent = 'No OpenAI API key configured yet — add one to backend/.env and restart the server to enable live answers.';
+    statusBanner.classList.add('show');
+  }
+}).catch(() => {});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.view).classList.add('active');
+  });
+});
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+const chatLog = document.getElementById('chat-log');
+const chatInput = document.getElementById('chat-input');
+const chatSend = document.getElementById('chat-send');
+let chatHistory = [];
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return div;
+}
+
+addMsg('bot', "Hi — ask me anything about HVAC sizing, terminology, Manual D/duct design, or a permit/compliance question. I'll look things up live when it's a code or rebate question.");
+
+async function sendChat() {
+  const message = chatInput.value.trim();
+  if (!message) return;
+  chatInput.value = '';
+  chatSend.disabled = true;
+  addMsg('user', message);
+  const thinking = addMsg('searching', 'Thinking…');
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message, history: chatHistory})
+    });
+    const data = await resp.json();
+    thinking.remove();
+    if (!resp.ok) {
+      addMsg('error', data.error || 'Something went wrong.');
+      return;
+    }
+    if (data.used_web_search) {
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.textContent = 'Looked this up live';
+      chatLog.appendChild(tag);
+    }
+    addMsg('bot', data.answer);
+    chatHistory.push({role: 'user', content: message});
+    chatHistory.push({role: 'assistant', content: data.answer});
+  } catch (e) {
+    thinking.remove();
+    addMsg('error', 'Could not reach the server: ' + e.message);
+  } finally {
+    chatSend.disabled = false;
+  }
+}
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
+/* ============================================================
+   HOME VISIT WIZARD
+   ============================================================ */
+
+const STORAGE_KEY = 'hvac_qa_current_visit';
+const HISTORY_KEY = 'hvac_qa_visit_history';
+
+const STEPS = [
+  'address', 'confirm-sqft', 'sizing', 'nameplate', 'advice',
+  'cfm', 'duct-tally', 'vent-count', 'asbestos', 'duct-condition',
+  'attic', 'crawlspace', 'quote'
+];
+
+const DUCT_CHART = {5:50, 6:75, 7:110, 8:160, 9:225, 10:300, 12:480, 14:700, 16:1000, 18:1300, 20:1700};
+
+const AC_CLIMATE_RANGES = {
+  hot: [400, 500],
+  moderate: [500, 600],
+  cool: [600, 700]
+};
+
+function defaultState() {
+  return {
+    stepIndex: 0,
+    address: '',
+    sqftLookup: null,       // {answer, sqft, source, confident}
+    confirmedSqft: '',
+    climate: 'moderate',
+    nameplate: null,        // {answer, model_number, brand, tonnage, btu, age_years, age_source}
+    nameplatePhoto: null,
+    existingTonsOverride: '',
+    existingAgeOverride: '',
+    ductCounts: {},         // {6: 2, 10: 3, ...}
+    ventCount: '',
+    asbestos: {photo: null, whiteMaterial: '', preBuilt: ''},
+    ductCondition: {rating: '', note: '', photo: null},
+    atticInsulation: {rating: '', note: '', photo: null, needsReplacement: false, atticSqft: ''},
+    crawlspaceMoisture: {rating: '', note: '', photo: null},
+    furnaceBrand: '',
+    acBrand: '',
+    quote: {marginPct: 25, items: [], view: 'salesman'},
+  };
+}
+
+let state = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return Object.assign(defaultState(), JSON.parse(raw));
+  } catch (e) {}
+  return defaultState();
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function archiveAndReset() {
+  try {
+    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    history.push(Object.assign({finishedAt: new Date().toISOString()}, state));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch (e) {}
+  state = defaultState();
+  saveState();
+  renderWizard();
+}
+
+/* ---- deterministic sizing helpers (no LLM call needed) ---- */
+
+function furnaceTonsForSqft(sqft) {
+  if (!sqft || sqft <= 0) return null;
+  if (sqft < 1100) return 2;
+  if (sqft < 1400) return 2.5;
+  if (sqft < 1600) return 3;
+  if (sqft < 1800) return 3.5;
+  if (sqft < 2200) return 4;
+  if (sqft <= 2600) return 5;
+  return null; // beyond standard chart — needs a real Manual J
+}
+
+function acTonsRangeForSqft(sqft, climate) {
+  if (!sqft || sqft <= 0) return null;
+  const [lo, hi] = AC_CLIMATE_RANGES[climate] || AC_CLIMATE_RANGES.moderate;
+  const tonsMin = sqft / hi;
+  const tonsMax = sqft / lo;
+  const likely = Math.round(((tonsMin + tonsMax) / 2) * 2) / 2; // nearest 0.5 ton
+  return {min: tonsMin, max: tonsMax, likely};
+}
+
+function requiredCfmForTons(tons) {
+  if (!tons) return null;
+  return Math.round(tons * 300);
+}
+
+function fmtTons(t) {
+  if (t === null || t === undefined || t === '') return '—';
+  return (Math.round(t * 2) / 2).toFixed(1).replace(/\.0$/, '') + ' ton';
+}
+
+/* ---- rendering ---- */
+
+const progressEl = document.getElementById('wizard-progress');
+const bodyEl = document.getElementById('wizard-body');
+
+function stepTitle(i) {
+  return ['Address', 'Square Footage', 'Recommended Size', 'Nameplate', 'Advice',
+          'Duct CFM Needed', 'Current Ducts', 'Vent/Duct Count', 'Asbestos Check',
+          'Duct Condition', 'Attic Insulation', 'Crawlspace', 'Quote'][i];
+}
+
+function renderWizard() {
+  const i = state.stepIndex;
+  progressEl.textContent = `Step ${i + 1} of ${STEPS.length} — ${stepTitle(i)}`;
+  bodyEl.innerHTML = '';
+  const renderFn = {
+    'address': renderAddressStep,
+    'confirm-sqft': renderConfirmSqftStep,
+    'sizing': renderSizingStep,
+    'nameplate': renderNameplateStep,
+    'advice': renderAdviceStep,
+    'cfm': renderCfmStep,
+    'duct-tally': renderDuctTallyStep,
+    'vent-count': renderVentCountStep,
+    'asbestos': renderAsbestosStep,
+    'duct-condition': () => renderInspectionStep('ductCondition', 'Duct Condition',
+      'Visually check the ductwork — connections, insulation wrap, signs of damage or disconnection. Photo required.'),
+    'attic': renderAtticStep,
+    'crawlspace': () => renderInspectionStep('crawlspaceMoisture', 'Crawlspace Moisture',
+      'Check the crawlspace for standing water, damp soil, or vapor barrier issues. Photo required.'),
+    'quote': renderQuoteStep,
+  }[STEPS[i]];
+  renderFn();
+  saveState();
+}
+
+function navButtons(container, {backDisabled, nextDisabled, nextLabel, onNext} = {}) {
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  if (state.stepIndex > 0) {
+    const back = document.createElement('button');
+    back.className = 'btn btn-secondary';
+    back.textContent = 'Back';
+    back.style.flex = '0 0 90px';
+    back.disabled = !!backDisabled;
+    back.addEventListener('click', () => { state.stepIndex--; renderWizard(); });
+    row.appendChild(back);
+  }
+  const next = document.createElement('button');
+  next.className = 'btn btn-primary';
+  next.textContent = nextLabel || (state.stepIndex === STEPS.length - 1 ? 'Finish' : 'Next');
+  next.disabled = !!nextDisabled;
+  next.addEventListener('click', () => {
+    if (onNext) onNext();
+    if (state.stepIndex < STEPS.length - 1) { state.stepIndex++; renderWizard(); }
+  });
+  row.appendChild(next);
+  container.appendChild(row);
+}
+
+/* Step 1: address */
+function renderAddressStep() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Property address</h2>
+    <p class="sub">Enter the address before heading in — we'll try to pull the square footage automatically from public listing sources so you have a starting point.</p>
+    <label class="field-label" for="address-input">Address</label>
+    <input type="text" id="address-input" placeholder="123 Main St, San Francisco, CA" value="${escapeHtml(state.address)}">
+    <button class="btn btn-primary" id="lookup-btn">Look Up Square Footage</button>
+    <div id="lookup-result"></div>
+  `;
+  bodyEl.appendChild(card);
+
+  const input = card.querySelector('#address-input');
+  input.addEventListener('input', () => { state.address = input.value; saveState(); });
+
+  const resultDiv = card.querySelector('#lookup-result');
+  if (state.sqftLookup) renderLookupResult(resultDiv, state.sqftLookup);
+
+  card.querySelector('#lookup-btn').addEventListener('click', async () => {
+    const address = input.value.trim();
+    if (!address) { input.focus(); return; }
+    state.address = address;
+    const btn = card.querySelector('#lookup-btn');
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+    resultDiv.innerHTML = '';
+    try {
+      const resp = await fetch('/api/lookup-sqft', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({address})
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        resultDiv.innerHTML = `<div class="result-box warn">${escapeHtml(data.error || 'Lookup failed.')}</div>`;
+      } else {
+        state.sqftLookup = data;
+        if (data.sqft) state.confirmedSqft = data.sqft;
+        renderLookupResult(resultDiv, data);
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<div class="result-box warn">Could not reach the server: ${escapeHtml(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Look Up Square Footage';
+      saveState();
+    }
+  });
+
+  navButtons(card, {});
+}
+
+function renderLookupResult(container, data) {
+  const cls = data.confident && data.sqft ? 'good' : 'warn';
+  const sqftLine = data.sqft ? `<strong>${data.sqft.toLocaleString()} sqft</strong>${data.source ? ' — ' + escapeHtml(data.source) : ''}\n\n` : '';
+  container.innerHTML = `<div class="result-box ${cls}">${sqftLine}${escapeHtml(data.answer || '')}</div>`;
+}
+
+/* Step 2: confirm sqft + climate */
+function renderConfirmSqftStep() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Confirm square footage</h2>
+    <p class="sub">Confirm this with the homeowner and/or a quick measurement — don't rely on the auto-lookup alone. Also pick the climate zone so the AC estimate is realistic.</p>
+    <label class="field-label" for="sqft-confirm-input">Square footage (confirmed)</label>
+    <input type="number" id="sqft-confirm-input" placeholder="e.g. 1800" value="${state.confirmedSqft || ''}">
+    <label class="field-label" for="climate-select">Climate zone</label>
+    <select id="climate-select">
+      <option value="hot" ${state.climate==='hot'?'selected':''}>Hot (400–500 sqft/ton)</option>
+      <option value="moderate" ${state.climate==='moderate'?'selected':''}>Moderate (500–600 sqft/ton)</option>
+      <option value="cool" ${state.climate==='cool'?'selected':''}>Cool (600–700 sqft/ton)</option>
+    </select>
+  `;
+  bodyEl.appendChild(card);
+
+  const sqftInput = card.querySelector('#sqft-confirm-input');
+  sqftInput.addEventListener('input', () => { state.confirmedSqft = sqftInput.value; saveState(); });
+  const climateSelect = card.querySelector('#climate-select');
+  climateSelect.addEventListener('change', () => { state.climate = climateSelect.value; saveState(); });
+
+  navButtons(card, {
+    nextDisabled: false,
+    onNext: () => { state.confirmedSqft = sqftInput.value; state.climate = climateSelect.value; }
+  });
+}
+
+/* Step 3: computed recommended sizing (deterministic, no API call) */
+function renderSizingStep() {
+  const sqft = parseFloat(state.confirmedSqft);
+  const furnaceTons = furnaceTonsForSqft(sqft);
+  const acRange = acTonsRangeForSqft(sqft, state.climate);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Recommended size for this home</h2>
+    <p class="sub">Computed directly from the sizing tables — furnace from square footage, AC from square footage + climate (heating and cooling are different calculations, see the Q&A tab for why).</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="num">${furnaceTons ? fmtTons(furnaceTons) : '—'}</div>
+        <div class="lbl">Furnace (heating)</div>
+      </div>
+      <div class="stat">
+        <div class="num">${acRange ? fmtTons(acRange.likely) : '—'}</div>
+        <div class="lbl">AC (cooling), likely</div>
+      </div>
+    </div>
+    ${acRange ? `<div class="result-box">AC range: ${acRange.min.toFixed(1)}–${acRange.max.toFixed(1)} tons depending on sun exposure, insulation, and windows. This is a rule-of-thumb estimate, not a Manual J calculation.</div>` : ''}
+    ${!furnaceTons ? `<div class="result-box warn">${sqft ? sqft.toLocaleString() + ' sqft is beyond the standard chart — this needs a real load calculation, not a rule of thumb.' : 'Go back and enter a square footage to see a recommendation.'}</div>` : ''}
+  `;
+  bodyEl.appendChild(card);
+  navButtons(card, {});
+}
+
+/* Step 4: nameplate photo (mandatory) */
+function renderNameplateStep() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Existing system nameplate</h2>
+    <p class="sub">Find the nameplate sticker — inside the furnace side panel, or the top/back panel of the condenser. Photo required.</p>
+    <label class="photo-btn" for="nameplate-photo-input">Tap to take or choose a photo</label>
+    <input type="file" id="nameplate-photo-input" accept="image/*" capture="environment" style="display:none;">
+    <div class="preview-wrap" id="nameplate-preview">${state.nameplatePhoto ? `<img src="${state.nameplatePhoto}">` : ''}</div>
+    <button class="btn btn-secondary" id="nameplate-submit" ${state.nameplatePhoto ? '' : 'disabled'}>Read Nameplate</button>
+    <div id="nameplate-result"></div>
+    <label class="field-label" style="margin-top:14px;">Or enter manually if the photo doesn't read clearly</label>
+    <input type="number" step="0.5" id="existing-tons-input" placeholder="Existing size (tons)" value="${state.existingTonsOverride || ''}">
+    <input type="number" id="existing-age-input" placeholder="Existing age (years), if known" value="${state.existingAgeOverride || ''}">
+  `;
+  bodyEl.appendChild(card);
+
+  const photoInput = card.querySelector('#nameplate-photo-input');
+  const preview = card.querySelector('#nameplate-preview');
+  const submitBtn = card.querySelector('#nameplate-submit');
+  const resultDiv = card.querySelector('#nameplate-result');
+  const tonsInput = card.querySelector('#existing-tons-input');
+  const ageInput = card.querySelector('#existing-age-input');
+
+  if (state.nameplate) renderNameplateResult(resultDiv, state.nameplate);
+
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    state.nameplatePhoto = await fileToDataUrl(file);
+    preview.innerHTML = `<img src="${state.nameplatePhoto}" alt="Nameplate preview">`;
+    submitBtn.disabled = false;
+    saveState();
+    const nextBtn = card.querySelector('.btn-row .btn-primary');
+    if (nextBtn) nextBtn.disabled = false;
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    if (!state.nameplatePhoto) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Reading…';
+    resultDiv.innerHTML = '';
+    try {
+      const resp = await fetch('/api/nameplate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({image: state.nameplatePhoto})
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        resultDiv.innerHTML = `<div class="result-box warn">${escapeHtml(data.error || 'Something went wrong.')}</div>`;
+      } else {
+        state.nameplate = data;
+        if (data.tonnage) tonsInput.value = data.tonnage;
+        if (data.age_years) ageInput.value = data.age_years;
+        renderNameplateResult(resultDiv, data);
+        saveState();
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<div class="result-box warn">Could not reach the server: ${escapeHtml(e.message)}</div>`;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Read Nameplate';
+    }
+  });
+
+  tonsInput.addEventListener('input', () => { state.existingTonsOverride = tonsInput.value; saveState(); });
+  ageInput.addEventListener('input', () => { state.existingAgeOverride = ageInput.value; saveState(); });
+
+  navButtons(card, {
+    nextDisabled: !state.nameplatePhoto,
+    onNext: () => { state.existingTonsOverride = tonsInput.value; state.existingAgeOverride = ageInput.value; }
+  });
+}
+
+function renderNameplateResult(container, data) {
+  container.innerHTML = `<div class="result-box">${escapeHtml(data.answer || '')}</div>`;
+}
+
+/* Step 5: advice (deterministic — replace vs diagnostic + mis-size flag) */
+function renderAdviceStep() {
+  const existingTons = parseFloat(state.existingTonsOverride) || (state.nameplate && state.nameplate.tonnage) || null;
+  const existingAge = parseFloat(state.existingAgeOverride) || (state.nameplate && state.nameplate.age_years) || null;
+  const sqft = parseFloat(state.confirmedSqft);
+  const recommendedFurnaceTons = furnaceTonsForSqft(sqft);
+
+  let ageAdvice, ageCls;
+  if (existingAge === null) {
+    ageAdvice = "Age unknown — couldn't determine it from the nameplate or a manual entry. Without an age, lead with a diagnostic rather than assuming replacement is warranted.";
+    ageCls = 'warn';
+  } else if (existingAge >= 15) {
+    ageAdvice = `System is ${existingAge} years old (15+). Position this toward a replacement conversation — at this age, efficiency losses and rising failure risk generally make replacement the stronger case.`;
+    ageCls = 'bad';
+  } else {
+    ageAdvice = `System is ${existingAge} years old (under 15). Recommend scheduling a diagnostic rather than jumping straight to a replacement pitch — more likely to be a fixable issue.`;
+    ageCls = 'good';
+  }
+
+  let sizeAdvice = null;
+  if (existingTons && recommendedFurnaceTons && existingTons !== recommendedFurnaceTons) {
+    sizeAdvice = `Existing system is ${fmtTons(existingTons)}, but this home calls for ${fmtTons(recommendedFurnaceTons)}. That's a mis-size — worth flagging regardless of age (see "Why sizing matters" in the Q&A tab).`;
+  }
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Replace or diagnose?</h2>
+    <div class="result-box ${ageCls}">${escapeHtml(ageAdvice)}</div>
+    ${sizeAdvice ? `<div class="result-box bad">${escapeHtml(sizeAdvice)}</div>` : ''}
+  `;
+  bodyEl.appendChild(card);
+  navButtons(card, {});
+}
+
+/* Step 6: required CFM (deterministic) */
+function renderCfmStep() {
+  const sqft = parseFloat(state.confirmedSqft);
+  const tons = furnaceTonsForSqft(sqft);
+  const cfm = requiredCfmForTons(tons);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Required duct airflow</h2>
+    <p class="sub">Tonnage × 300 CFM/ton — this is what the duct system needs to move to properly serve a ${tons ? fmtTons(tons) : '—'} system.</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="num">${cfm ? cfm.toLocaleString() : '—'}</div>
+        <div class="lbl">Total CFM needed</div>
+      </div>
+    </div>
+  `;
+  bodyEl.appendChild(card);
+  navButtons(card, {});
+}
+
+/* Step 7: current duct tally vs required */
+function renderDuctTallyStep() {
+  const sqft = parseFloat(state.confirmedSqft);
+  const requiredCfm = requiredCfmForTons(furnaceTonsForSqft(sqft));
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Count the current ducts</h2>
+    <p class="sub">Count how many of each duct size connect to the plenum. We'll total the CFM and compare it to what's needed.</p>
+    <div class="duct-grid" id="duct-grid"></div>
+    <div id="duct-total-box"></div>
+  `;
+  bodyEl.appendChild(card);
+
+  const grid = card.querySelector('#duct-grid');
+  Object.keys(DUCT_CHART).forEach(size => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<label>${size}" duct (${DUCT_CHART[size]} CFM each)</label>
+      <input type="number" min="0" data-size="${size}" value="${state.ductCounts[size] || ''}" placeholder="0">`;
+    grid.appendChild(wrap);
+  });
+
+  const totalBox = card.querySelector('#duct-total-box');
+
+  function recompute() {
+    let total = 0;
+    grid.querySelectorAll('input').forEach(inp => {
+      const size = inp.dataset.size;
+      const count = parseInt(inp.value) || 0;
+      state.ductCounts[size] = count;
+      total += count * DUCT_CHART[size];
+    });
+    saveState();
+    if (!requiredCfm) {
+      totalBox.innerHTML = '';
+      return;
+    }
+    const pct = total / requiredCfm;
+    const cls = pct >= 0.9 ? 'good' : 'bad';
+    const verdict = pct >= 0.9
+      ? 'Ductwork looks adequate for the recommended system.'
+      : `Ducts appear undersized for the recommended system — this is an upsell opportunity, not just a callback risk.`;
+    totalBox.innerHTML = `<div class="result-box ${cls}">Current total: <strong>${total.toLocaleString()} CFM</strong> vs. ${requiredCfm.toLocaleString()} CFM needed.\n${verdict}</div>`;
+  }
+
+  grid.querySelectorAll('input').forEach(inp => inp.addEventListener('input', recompute));
+  recompute();
+
+  navButtons(card, {});
+}
+
+/* Vent/duct replacement count — drives quote line items directly */
+function renderVentCountStep() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Count vents needing new ductwork</h2>
+    <p class="sub">Count the vents/registers that need a new duct run and boot. This number drives both the duct replacement and vent boot line items in the quote.</p>
+    <label class="field-label" for="vent-count-input">Vents needing new ductwork</label>
+    <input type="number" min="0" id="vent-count-input" placeholder="e.g. 8" value="${state.ventCount || ''}">
+  `;
+  bodyEl.appendChild(card);
+  const input = card.querySelector('#vent-count-input');
+  input.addEventListener('input', () => { state.ventCount = input.value; saveState(); });
+  navButtons(card, {onNext: () => { state.ventCount = input.value; }});
+}
+
+/* Asbestos flag — rep-observed, mandatory photo, not an AI diagnosis */
+function renderAsbestosStep() {
+  const a = state.asbestos;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Asbestos check</h2>
+    <p class="sub">Photograph the duct boots/plenum/connectors. Does any wrap or insulation on them look white or off-white (chalky, fibrous)? This is a field flag, not a lab determination — don't disturb the material.</p>
+    <label class="photo-btn" for="asbestos-photo-input">Tap to add a photo (required)</label>
+    <input type="file" id="asbestos-photo-input" accept="image/*" capture="environment" style="display:none;">
+    <div class="preview-wrap" id="asbestos-preview">${a.photo ? `<img src="${a.photo}">` : ''}</div>
+    ${!a.photo ? '<div class="photo-required-note">A photo is required before continuing.</div>' : ''}
+    <label class="field-label" style="margin-top:6px;">Wrap/insulation looks white or off-white?</label>
+    <div class="rating-row" id="white-row">
+      <button class="rating-btn ${a.whiteMaterial==='no'?'selected good':''}" data-val="no">No</button>
+      <button class="rating-btn ${a.whiteMaterial==='unsure'?'selected warn':''}" data-val="unsure">Unsure</button>
+      <button class="rating-btn ${a.whiteMaterial==='yes'?'selected bad':''}" data-val="yes">Yes</button>
+    </div>
+    <label class="field-label">Home built before 1980? (optional, corroborating)</label>
+    <div class="rating-row" id="age-row">
+      <button class="rating-btn ${a.preBuilt==='no'?'selected good':''}" data-val="no">No</button>
+      <button class="rating-btn ${a.preBuilt==='unknown'?'selected warn':''}" data-val="unknown">Unknown</button>
+      <button class="rating-btn ${a.preBuilt==='yes'?'selected bad':''}" data-val="yes">Yes</button>
+    </div>
+  `;
+  bodyEl.appendChild(card);
+
+  const photoInput = card.querySelector('#asbestos-photo-input');
+  const preview = card.querySelector('#asbestos-preview');
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    a.photo = await fileToDataUrl(file);
+    preview.innerHTML = `<img src="${a.photo}">`;
+    saveState();
+    const nextBtn = card.querySelector('.btn-row .btn-primary');
+    if (nextBtn) nextBtn.disabled = false;
+    const note = card.querySelector('.photo-required-note');
+    if (note) note.remove();
+  });
+
+  card.querySelector('#white-row').querySelectorAll('.rating-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      a.whiteMaterial = btn.dataset.val;
+      saveState();
+      renderWizard();
+    });
+  });
+  card.querySelector('#age-row').querySelectorAll('.rating-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      a.preBuilt = btn.dataset.val;
+      saveState();
+      renderWizard();
+    });
+  });
+
+  navButtons(card, {nextDisabled: !a.photo});
+}
+
+/* Attic insulation: condition rating + mandatory photo + replacement bundle trigger */
+function renderAtticStep() {
+  const item = state.atticInsulation;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Attic Insulation</h2>
+    <p class="sub">Check the attic insulation depth and condition. Photo required.</p>
+    <div class="rating-row" id="rating-row">
+      <button class="rating-btn ${item.rating==='good'?'selected good':''}" data-val="good">Good</button>
+      <button class="rating-btn ${item.rating==='warn'?'selected warn':''}" data-val="warn">Needs Attention</button>
+      <button class="rating-btn ${item.rating==='bad'?'selected bad':''}" data-val="bad">Urgent Issue</button>
+    </div>
+    <label class="field-label">Note (optional)</label>
+    <textarea id="note-input" placeholder="Anything worth remembering about this...">${escapeHtml(item.note || '')}</textarea>
+    <label class="photo-btn" for="photo-input-attic">Tap to add a photo (required)</label>
+    <input type="file" id="photo-input-attic" accept="image/*" capture="environment" style="display:none;">
+    <div class="preview-wrap" id="preview-attic">${item.photo ? `<img src="${item.photo}">` : ''}</div>
+    ${!item.photo ? '<div class="photo-required-note">A photo is required before continuing.</div>' : ''}
+    <label class="field-label" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="needs-replace-cb" style="width:auto; margin:0;" ${item.needsReplacement ? 'checked' : ''}>
+      Recommend attic insulation replacement
+    </label>
+    <div id="attic-sqft-wrap" style="display:${item.needsReplacement ? 'block' : 'none'}">
+      <label class="field-label" for="attic-sqft-input">Attic square footage</label>
+      <input type="number" id="attic-sqft-input" placeholder="e.g. 1200" value="${item.atticSqft || ''}">
+      <div class="result-box">If recommended, the quote will bundle: insulation removal + install (R-38 blown-in default), air sealing, attic clean-up, and sanitizing — the typical package for an attic insulation job.</div>
+    </div>
+  `;
+  bodyEl.appendChild(card);
+
+  card.querySelectorAll('.rating-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      item.rating = btn.dataset.val;
+      if (btn.dataset.val === 'bad' && !item.needsReplacement) {
+        item.needsReplacement = true;
+      }
+      saveState();
+      renderWizard();
+    });
+  });
+
+  card.querySelector('#note-input').addEventListener('input', (e) => { item.note = e.target.value; saveState(); });
+
+  const photoInput = card.querySelector('#photo-input-attic');
+  const preview = card.querySelector('#preview-attic');
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    item.photo = await fileToDataUrl(file);
+    preview.innerHTML = `<img src="${item.photo}">`;
+    saveState();
+    const nextBtn = card.querySelector('.btn-row .btn-primary');
+    if (nextBtn) nextBtn.disabled = false;
+    const note = card.querySelector('.photo-required-note');
+    if (note) note.remove();
+  });
+
+  card.querySelector('#needs-replace-cb').addEventListener('change', (e) => {
+    item.needsReplacement = e.target.checked;
+    saveState();
+    renderWizard();
+  });
+  const sqftInput = card.querySelector('#attic-sqft-input');
+  if (sqftInput) sqftInput.addEventListener('input', (e) => { item.atticSqft = e.target.value; saveState(); });
+
+  navButtons(card, {nextDisabled: !item.photo});
+}
+
+/* Reusable rating+note+mandatory-photo inspection item */
+function renderInspectionStep(stateKey, title, instructions) {
+  const item = state[stateKey];
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>${title}</h2>
+    <p class="sub">${instructions}</p>
+    <div class="rating-row" id="rating-row">
+      <button class="rating-btn ${item.rating==='good'?'selected good':''}" data-val="good">Good</button>
+      <button class="rating-btn ${item.rating==='warn'?'selected warn':''}" data-val="warn">Needs Attention</button>
+      <button class="rating-btn ${item.rating==='bad'?'selected bad':''}" data-val="bad">Urgent Issue</button>
+    </div>
+    <label class="field-label">Note (optional)</label>
+    <textarea id="note-input" placeholder="Anything worth remembering about this...">${escapeHtml(item.note || '')}</textarea>
+    <label class="photo-btn" for="photo-input-${stateKey}">Tap to add a photo (required)</label>
+    <input type="file" id="photo-input-${stateKey}" accept="image/*" capture="environment" style="display:none;">
+    <div class="preview-wrap" id="preview-${stateKey}">${item.photo ? `<img src="${item.photo}">` : ''}</div>
+    ${!item.photo ? '<div class="photo-required-note">A photo is required before continuing.</div>' : ''}
+  `;
+  bodyEl.appendChild(card);
+
+  card.querySelectorAll('.rating-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      item.rating = btn.dataset.val;
+      saveState();
+      card.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('selected','good','warn','bad'));
+      btn.classList.add('selected', btn.dataset.val);
+    });
+  });
+
+  const noteInput = card.querySelector('#note-input');
+  noteInput.addEventListener('input', () => { item.note = noteInput.value; saveState(); });
+
+  const photoInput = card.querySelector(`#photo-input-${stateKey}`);
+  const preview = card.querySelector(`#preview-${stateKey}`);
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    item.photo = await fileToDataUrl(file);
+    preview.innerHTML = `<img src="${item.photo}">`;
+    saveState();
+    const nextBtn = card.querySelector('.btn-row .btn-primary');
+    if (nextBtn) nextBtn.disabled = false;
+    const note = card.querySelector('.photo-required-note');
+    if (note) note.remove();
+  });
+
+  navButtons(card, {nextDisabled: !item.photo});
+}
+
+/* ============================================================
+   QUOTE ENGINE (uses window.EM_PRICING from pricing-catalog.js)
+   ============================================================ */
+
+function furnaceLabelToken(tons) {
+  return (tons === 2 || tons === 2.5) ? '2–2.5 Ton' : `${tons} Ton`;
+}
+
+function pickDefaultOption(opts, preferredPattern) {
+  return opts.find(([label]) => preferredPattern.test(label)) || opts[0] || null;
+}
+
+function isReplacementScenario() {
+  const sqft = parseFloat(state.confirmedSqft);
+  const furnaceTons = furnaceTonsForSqft(sqft);
+  const existingTons = parseFloat(state.existingTonsOverride) || (state.nameplate && state.nameplate.tonnage) || null;
+  const existingAge = parseFloat(state.existingAgeOverride) || (state.nameplate && state.nameplate.age_years) || null;
+  return (existingAge !== null && existingAge >= 15) || !!(existingTons && furnaceTons && existingTons !== furnaceTons);
+}
+
+function buildAutoQuoteItems() {
+  const P = window.EM_PRICING;
+  const items = [];
+  let nextId = 1;
+  function addItem(name, unit, qty, selectLabel) {
+    const entry = P.findEntry(name);
+    if (!entry) return;
+    const cost = P.baseCost(name, qty, selectLabel);
+    items.push({id: nextId++, name, unit: unit || entry.u, qty, selectLabel: selectLabel || null, baseCost: cost, customerPrice: 0, auto: true, locked: false});
+  }
+
+  const sqft = parseFloat(state.confirmedSqft);
+  const furnaceTons = furnaceTonsForSqft(sqft);
+  const acRange = acTonsRangeForSqft(sqft, state.climate);
+  const replacement = isReplacementScenario();
+
+  if (replacement && furnaceTons) {
+    const opts = (P.SELECT_OPTS.by_furnace_tonnage || []).filter(([label]) => label.includes(furnaceLabelToken(furnaceTons)));
+    const chosen = state.furnaceBrand && opts.some(([l]) => l === state.furnaceBrand) ? state.furnaceBrand : (pickDefaultOption(opts, /Payne 80% 1-stage/) || [null])[0];
+    if (chosen) { state.furnaceBrand = chosen; addItem('Furnace Installation', 'by_furnace_tonnage', 1, chosen); }
+    addItem('Furnace Removal & Disposal', 'variable', 1, null);
+  }
+  if (replacement && acRange) {
+    const opts = (P.SELECT_OPTS.by_ac_tonnage || []).filter(([label]) => label.includes(`${acRange.likely} Ton`));
+    const chosen = state.acBrand && opts.some(([l]) => l === state.acBrand) ? state.acBrand : (pickDefaultOption(opts, /Payne PA5S/) || [null])[0];
+    if (chosen) { state.acBrand = chosen; addItem('A/C Installation', 'by_ac_tonnage', 1, chosen); }
+    addItem('A/C Removal & Disposal', 'variable', 1, null);
+  }
+
+  const ventCount = parseInt(state.ventCount) || 0;
+  if (ventCount > 0) {
+    addItem('Air Duct Replacement', 'per_unit', ventCount, null);
+    addItem('Vent Boots Installation', 'per_unit', ventCount, null);
+  }
+
+  if (state.atticInsulation.needsReplacement) {
+    const atticSqft = parseFloat(state.atticInsulation.atticSqft) || 0;
+    if (atticSqft > 0) {
+      addItem('Attic Insulation Removal', 'per_sqft', atticSqft, null);
+      addItem('Attic Insulation Installation', 'by_attic_insulation_install', atticSqft, 'R-38 blown in');
+      addItem('Air Sealing (Attic)', 'per_unit', 1, null);
+      addItem('Attic Clean Up', 'variable', 1, null);
+      addItem('Sanitizing & Disinfecting (Attic)', 'variable', 1, null);
+    }
+  }
+
+  const asbestosFlagged = state.asbestos.whiteMaterial === 'yes' || state.asbestos.whiteMaterial === 'unsure';
+  if (asbestosFlagged && ventCount > 0) {
+    let tierLabel = ventCount < 6 ? '< 6 Air Ducts' : (ventCount <= 9 ? '6 – 9 Air Ducts' : '10 – 12 Air Ducts');
+    addItem('Asbestos Air Ducts Abatement', 'by_asbestos_air_ducts', 1, tierLabel);
+  }
+
+  return items;
+}
+
+function recomputeQuotePrices() {
+  const P = window.EM_PRICING;
+  const marginPct = (parseFloat(state.quote.marginPct) || 0) / 100;
+  P.applyComboRules(state.quote.items);
+  state.quote.items.forEach(it => {
+    it.baseCost = P.baseCost(it.name, it.qty, it.selectLabel);
+    if (!it.locked) {
+      const eff = P.effectiveCost(it);
+      it.customerPrice = P.defaultCustomerPrice(it.name, it.unit, eff, marginPct);
+    }
+  });
+}
+
+function quoteTotals() {
+  const P = window.EM_PRICING;
+  let rev = 0, cost = 0;
+  state.quote.items.forEach(it => {
+    rev += (parseFloat(it.customerPrice) || 0);
+    const eff = P.effectiveCost(it);
+    cost += eff || 0;
+  });
+  return {rev, cost, profit: rev - cost, marginPct: rev > 0 ? (rev - cost) / rev * 100 : null};
+}
+
+function fmtMoney(n) {
+  return '$' + (Math.round((n || 0) * 100) / 100).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function renderQuoteStep() {
+  if (!state.quote.items || state.quote.items.length === 0) {
+    state.quote.items = buildAutoQuoteItems();
+  }
+  recomputeQuotePrices();
+
+  const sqft = parseFloat(state.confirmedSqft);
+  const furnaceTons = furnaceTonsForSqft(sqft);
+  const acRange = acTonsRangeForSqft(sqft, state.climate);
+  const existingTons = parseFloat(state.existingTonsOverride) || (state.nameplate && state.nameplate.tonnage) || null;
+  const existingAge = parseFloat(state.existingAgeOverride) || (state.nameplate && state.nameplate.age_years) || null;
+  const ratingLabel = r => ({good: 'Good', warn: 'Needs Attention', bad: 'Urgent Issue', '': 'Not recorded'}[r] || 'Not recorded');
+  const replacement = isReplacementScenario();
+
+  const notesRows = [
+    ['Address', state.address || '—'],
+    ['Confirmed square footage', sqft ? sqft.toLocaleString() + ' sqft' : '—'],
+    ['Recommended sizing', (furnaceTons ? 'Furnace ' + fmtTons(furnaceTons) : '—') + (acRange ? ', AC ' + fmtTons(acRange.likely) : '')],
+    ['Existing system', (existingTons ? fmtTons(existingTons) : '—') + (existingAge ? `, ${existingAge} yrs old` : ', age unknown')],
+    ['Path', replacement ? 'Replacement recommended' : 'Diagnostic recommended (not a full replacement quote)'],
+    ['Duct condition', ratingLabel(state.ductCondition.rating)],
+    ['Attic insulation', ratingLabel(state.atticInsulation.rating) + (state.atticInsulation.needsReplacement ? ' — replacement bundled below' : '')],
+    ['Crawlspace moisture', ratingLabel(state.crawlspaceMoisture.rating)],
+    ['Asbestos flag', state.asbestos.whiteMaterial === 'yes' ? 'Flagged — white material observed' : state.asbestos.whiteMaterial === 'unsure' ? 'Flagged — unsure' : 'Not flagged'],
+  ];
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h2>Visit notes</h2>${notesRows.map(([k, v]) => `<div class="summary-item"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}`;
+  bodyEl.appendChild(card);
+
+  if (!replacement) {
+    const note = document.createElement('div');
+    note.className = 'card';
+    note.innerHTML = `<div class="result-box warn">This visit's assessment points to a diagnostic, not a full system replacement — no furnace/AC line items were auto-added. Use "+ Add Service" below if the customer wants a replacement quote for comparison anyway.</div>`;
+    bodyEl.appendChild(note);
+  }
+
+  const qcard = document.createElement('div');
+  qcard.className = 'card';
+  qcard.innerHTML = `
+    <h2>Quote</h2>
+    <div class="qview-toggle">
+      <button class="qview-btn ${state.quote.view==='salesman'?'active':''}" id="view-salesman">Salesman View</button>
+      <button class="qview-btn ${state.quote.view==='client'?'active':''}" id="view-client">Client View</button>
+    </div>
+    <div class="margin-row">
+      <label for="margin-input">Target margin</label>
+      <input type="number" id="margin-input" min="0" max="90" value="${state.quote.marginPct}">
+      <span>%</span>
+    </div>
+    <div id="qtable-wrap"></div>
+    <div class="add-svc-wrap">
+      <input type="text" id="add-svc-search" placeholder="+ Add a service…">
+      <div class="add-svc-results" id="add-svc-results" style="display:none;"></div>
+    </div>
+    <div class="qtotals" id="qtotals"></div>
+  `;
+  bodyEl.appendChild(qcard);
+
+  qcard.querySelector('#view-salesman').addEventListener('click', () => { state.quote.view = 'salesman'; saveState(); renderWizard(); });
+  qcard.querySelector('#view-client').addEventListener('click', () => { state.quote.view = 'client'; saveState(); renderWizard(); });
+
+  qcard.querySelector('#margin-input').addEventListener('input', (e) => {
+    state.quote.marginPct = e.target.value;
+    saveState();
+    renderWizard();
+  });
+
+  renderQuoteTable(qcard.querySelector('#qtable-wrap'));
+  renderQuoteTotals(qcard.querySelector('#qtotals'));
+  wireAddService(qcard);
+
+  const row = document.createElement('div');
+  row.className = 'btn-row';
+  const back = document.createElement('button');
+  back.className = 'btn btn-secondary';
+  back.textContent = 'Back';
+  back.style.flex = '0 0 90px';
+  back.addEventListener('click', () => { state.stepIndex--; renderWizard(); });
+  row.appendChild(back);
+  const finish = document.createElement('button');
+  finish.className = 'btn btn-primary';
+  finish.textContent = 'Finish & Start New Visit';
+  finish.addEventListener('click', () => { archiveAndReset(); });
+  row.appendChild(finish);
+  qcard.appendChild(row);
+}
+
+function renderQuoteTable(container) {
+  const P = window.EM_PRICING;
+  const salesman = state.quote.view === 'salesman';
+  const rows = state.quote.items.map(it => {
+    const eff = P.effectiveCost(it);
+    const profit = (parseFloat(it.customerPrice) || 0) - (eff || 0);
+    const margin = it.customerPrice > 0 ? (profit / it.customerPrice * 100).toFixed(0) + '%' : '—';
+    const qtyEditable = P.SQFT_UNITS.has(it.unit) || it.unit === 'per_unit' || it.unit === 'per_vent' || it.unit === 'per_lnft';
+    return `<tr data-id="${it.id}">
+      <td><div class="qname">${escapeHtml(it.name)}</div>${it.selectLabel ? `<div class="svc-unit">${escapeHtml(it.selectLabel)}</div>` : ''}${it.auto ? '<div class="qauto">Auto</div>' : ''}</td>
+      <td class="r">${qtyEditable ? `<input type="number" min="0" class="qty-inp" value="${it.qty}">` : it.qty}</td>
+      ${salesman ? `<td class="r">${eff === null ? '—' : fmtMoney(eff)}</td>` : ''}
+      <td class="r"><input type="number" min="0" step="0.01" class="price-inp" value="${it.customerPrice}"></td>
+      ${salesman ? `<td class="r">${eff === null ? '—' : fmtMoney(profit) + ' (' + margin + ')'}</td>` : ''}
+      <td><button class="qrm" data-id="${it.id}" title="Remove">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table class="qtable">
+      <thead><tr>
+        <th>Service</th><th class="r">Qty</th>
+        ${salesman ? '<th class="r">EM Cost</th>' : ''}
+        <th class="r">Price</th>
+        ${salesman ? '<th class="r">Profit</th>' : ''}
+        <th></th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px;">No items yet</td></tr>'}</tbody>
+    </table>
+    </div>
+  `;
+
+  container.querySelectorAll('.qty-inp').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const id = parseInt(inp.closest('tr').dataset.id);
+      const item = state.quote.items.find(i => i.id === id);
+      item.qty = parseFloat(inp.value) || 0;
+      saveState();
+      renderWizard();
+    });
+  });
+  container.querySelectorAll('.price-inp').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const id = parseInt(inp.closest('tr').dataset.id);
+      const item = state.quote.items.find(i => i.id === id);
+      item.customerPrice = parseFloat(inp.value) || 0;
+      item.locked = true;
+      saveState();
+      renderQuoteTotals(document.getElementById('qtotals'));
+    });
+  });
+  container.querySelectorAll('.qrm').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.id);
+      state.quote.items = state.quote.items.filter(i => i.id !== id);
+      saveState();
+      renderWizard();
+    });
+  });
+}
+
+function renderQuoteTotals(container) {
+  const t = quoteTotals();
+  const salesman = state.quote.view === 'salesman';
+  container.innerHTML = `
+    <div class="stat"><div class="num">${fmtMoney(t.rev)}</div><div class="lbl">Total</div></div>
+    ${salesman ? `<div class="stat"><div class="num">${fmtMoney(t.cost)}</div><div class="lbl">EM Cost</div></div>` : ''}
+    ${salesman ? `<div class="stat"><div class="num">${fmtMoney(t.profit)}</div><div class="lbl">Profit</div></div>` : ''}
+    ${salesman ? `<div class="stat"><div class="num">${t.marginPct === null ? '—' : t.marginPct.toFixed(1) + '%'}</div><div class="lbl">Margin</div></div>` : ''}
+  `;
+}
+
+function wireAddService(container) {
+  const P = window.EM_PRICING;
+  const search = container.querySelector('#add-svc-search');
+  const results = container.querySelector('#add-svc-results');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+    const matches = P.DB_BASE.filter(e => e.n.toLowerCase().includes(q)).slice(0, 15);
+    results.innerHTML = matches.map(e => `<div class="add-svc-item" data-name="${escapeHtml(e.n)}">${escapeHtml(e.n)}</div>`).join('') || '<div class="add-svc-item">No matches</div>';
+    results.style.display = 'block';
+    results.querySelectorAll('.add-svc-item[data-name]').forEach(el => {
+      el.addEventListener('click', () => {
+        const entry = P.findEntry(el.dataset.name);
+        if (!entry) return;
+        let selectLabel = null;
+        if (P.SELECT_UNIT_TYPES.has(entry.u)) {
+          const opts = P.SELECT_OPTS[entry.u] || [];
+          selectLabel = (opts.find(([l, v]) => v !== '') || [null])[0];
+        }
+        const qty = 1;
+        state.quote.items.push({
+          id: Date.now(), name: entry.n, unit: entry.u, qty,
+          selectLabel, baseCost: P.baseCost(entry.n, qty, selectLabel),
+          customerPrice: 0, auto: false, locked: false,
+        });
+        search.value = '';
+        results.style.display = 'none';
+        saveState();
+        renderWizard();
+      });
+    });
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : str;
+  return div.innerHTML;
+}
+
+renderWizard();
+</script>
+
+</body>
+</html>

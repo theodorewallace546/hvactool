@@ -1,0 +1,149 @@
+HVAC SALESMAN Q&A — PROJECT GOAL
+Last updated: 2026-08-01
+
+===============================================================================
+1. WHAT THIS IS
+===============================================================================
+
+An AI field assistant for HVAC sales reps. Reps query it on their phone
+mid-pitch, standing in a driveway or attic, and it answers technical and
+objection-handling questions in plain language.
+
+This is being built as a STANDALONE PRODUCT to sell to multiple small HVAC
+businesses (roughly 1-25 trucks) — not a one-off tool for EM Energy & Air.
+EM is the first customer and the source of the initial training content, but
+the generic knowledge layer must stay company-agnostic so it can be resold.
+
+===============================================================================
+2. CORE CAPABILITIES (V1)
+===============================================================================
+
+- Plain-language Q&A over HVAC technical knowledge and objection-handling
+  scripts (sizing rules, terminology, equipment specs, common homeowner
+  pushback and how to answer it). This is the whole focus of v1 — ship one
+  thing well before adding more.
+
+- Permit / compliance lookups via live web search. Originally scoped out of
+  v1, added back in because reps need it in the field and it's cheap enough
+  not to matter (see cost notes below).
+
+===============================================================================
+3. TWO CONTENT LAYERS
+===============================================================================
+
+GENERIC LAYER (shared, built once, sold to every customer)
+- Technical specs, sizing rules, terminology, compatibility, objection
+  scripts.
+- Seeded from the two reference charts (put copies in reference/ — I
+  couldn't pull them from Messages automatically, macOS blocked filesystem
+  access to Messages attachments):
+    1. Tonnage/sqft/BTU sizing tables + duct CFM chart + "how to read a
+       nameplate" instructions (from the EM Energy & Air internal HVAC
+       training booklet).
+    2. Field duct CFM reference chart (round flex duct sizes vs. design
+       airflow).
+- Also draw from EM's general training booklets (Tools/docs_raw/training/)
+  where the content is generic HVAC knowledge rather than EM-specific
+  pricing.
+- Must be de-identified / generalized — no EM-specific pricing, no "EM
+  cost" figures, no Eilon-specific business rules. Those live in the
+  per-customer layer below.
+
+CUSTOM PRICING MODULE (opt-in, isolated per customer account)
+- Each business uploads or works with Theo to compile its own price book /
+  master cost sheet — the same exercise already done for EM Energy
+  (EM ENERGY COST MASTER.csv, em-qa-db.json, em-shared-pricing.js).
+- Sold as a separate consulting engagement, flat fee, per company. EM's own
+  data becomes the first instance of this module, not part of the shared
+  generic layer.
+- Strict isolation — one customer's pricing data must never be retrievable
+  by another customer's reps.
+
+===============================================================================
+4. BUSINESS MODEL
+===============================================================================
+
+- Standalone product, sold to multiple small HVAC businesses.
+- Theo owns and maintains the generic knowledge layer over time.
+- Per-customer pricing setup is a separate paid consulting engagement (flat
+  fee, same pattern as the EM cost master build).
+- Theo holds the OpenAI API key centrally; usage cost is folded into
+  pricing rather than passed through per-customer.
+
+===============================================================================
+5. ARCHITECTURE DECISIONS
+===============================================================================
+
+LLM: GPT-4o-mini (OpenAI).
+  Considered China-hosted models (DeepSeek, Qwen) for cost — at this bot's
+  expected query volume the savings are negligible (low single-digit
+  dollars/month per customer business), and routing any per-customer
+  pricing data through China-hosted APIs creates real data-law exposure
+  (PIPL / state-disclosure risk) for customers' business data. Not worth it
+  for a marginal cost difference. GPT-4o-mini also natively handles vision
+  (nameplate photo reading) and has a built-in web_search tool, so one
+  provider covers Q&A, image reading, and permit lookups.
+
+Web search: OpenAI's hosted web_search tool (Responses API), compatible
+  with gpt-4o-mini. Costs ~$10 per 1,000 calls + ~8,000 input tokens of
+  search content per call (~$0.011/call all-in). Gate this to
+  permit/compliance-flagged questions only, not every query, to keep it
+  cheap.
+
+Retrieval: v1 knowledge base (EM's generalized training content + the two
+  sizing/CFM charts) is small enough to fit directly in the model's context
+  window. Skip a vector database for the MVP — no embeddings, no Chroma/
+  pgvector yet. Revisit only if/when the generic layer grows large enough
+  that stuffing it all into context stops being cheap or accurate.
+
+Frontend: mobile-first web app for v1 (works in any phone browser,
+  installable to home screen). A dedicated native app is a later phase, not
+  v1.
+
+Backend: needs a real lightweight server — NOT a static single-file HTML
+  tool. Two reasons this breaks the usual "single-file HTML, no server"
+  default: (1) the OpenAI API key must live server-side, never shipped to
+  the browser, since this will run on other businesses' devices; (2) each
+  customer's pricing data must be stored and isolated server-side — a
+  static client-side file can't do either safely once sold externally.
+
+===============================================================================
+6. ROLLOUT PHASES
+===============================================================================
+
+Phase 1 — MVP
+  Generic Q&A + nameplate sizing lookup + permit/compliance web search.
+  Single demo account using EM's generalized content. Web chat UI, mobile-
+  first. Goal: validate answer quality and rep adoption before building
+  more.
+
+Phase 2 — Pricing module
+  Per-customer document upload, isolated indexing/storage, simple admin
+  flow for Theo (or a business owner) to manage a company's price book.
+
+Phase 3 — Multi-tenant polish
+  Self-serve onboarding for new small-business customers, usage analytics,
+  feedback-driven content updates, native app.
+
+===============================================================================
+7. OUT OF SCOPE FOR V1
+===============================================================================
+
+- CRM / scheduling integration (e.g. ServiceTitan, ServiceMonster).
+- Full diagnostic troubleshooting.
+- Self-serve tenant onboarding — Theo onboards each business manually for
+  now.
+- Nameplate photo lookup (rep photographs an equipment nameplate, bot reads
+  the model number and decodes BTU/tonnage). Descoped from v1 on 2026-08-01
+  to keep the first ship focused on Q&A alone. GPT-4o-mini already handles
+  vision, so this can be added later without a model change — just a new
+  endpoint + UI once the Q&A core is solid.
+
+===============================================================================
+8. OPEN ITEMS
+===============================================================================
+
+- OpenAI API key: need one provisioned before any live build/testing.
+- Hosting target once past local prototype (Render/Railway/Fly.io, etc.).
+- Final per-customer product pricing + the pricing-module consulting fee.
+- Who else besides Theo will ever touch/edit the generic content over time.
