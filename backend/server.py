@@ -12,6 +12,8 @@ The OpenAI API key must never reach the browser — that's the whole reason
 this is a server instead of a static HTML file (see goal.txt section 5).
 """
 
+import base64
+import io
 import json
 import re
 import os
@@ -20,6 +22,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_from_directory
 from openai import OpenAI
+from PIL import Image
+import pillow_heif
+
+pillow_heif.register_heif_opener()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -41,6 +47,25 @@ def get_client():
     if _client is None:
         _client = OpenAI(api_key=api_key)
     return _client
+
+
+def normalize_image_to_jpeg(data_url: str) -> str:
+    """Re-encode any uploaded photo as JPEG before it reaches OpenAI.
+
+    OpenAI's vision API only accepts PNG/JPEG/GIF/WebP. iPhones default to
+    HEIC, which silently fails there (the model just can't read it). This
+    normalizes every upload regardless of source format so that never
+    happens.
+    """
+    header, _, b64data = data_url.partition(",")
+    raw = base64.b64decode(b64data)
+    image = Image.open(io.BytesIO(raw))
+    if image.mode not in ("RGB", "L"):
+        image = image.convert("RGB")
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=90)
+    encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
 
 
 def load_knowledge_base() -> str:
@@ -263,6 +288,11 @@ def nameplate():
 
     if not image_data_url:
         return jsonify({"error": "No image provided."}), 400
+
+    try:
+        image_data_url = normalize_image_to_jpeg(image_data_url)
+    except Exception as e:
+        return jsonify({"error": f"Could not read that photo (unsupported or corrupt image file): {e}"}), 400
 
     system_prompt = NAMEPLATE_SYSTEM_PROMPT_TEMPLATE.format(
         knowledge_base=load_knowledge_base()

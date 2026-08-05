@@ -2,3 +2,5 @@ flask
 openai
 python-dotenv
 gunicorn
+Pillow
+pillow-heif
