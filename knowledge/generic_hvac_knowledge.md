@@ -122,8 +122,17 @@ Every piece of HVAC equipment has a nameplate sticker:
 - Condenser (outdoor AC/heat pump unit): usually on the top or back panel.
 
 What to look for on the nameplate:
-- **Model number** — often contains encoded size info. Example: a model
-  number containing "036" = 36,000 BTU = 3 ton. "048" = 48,000 BTU = 4 ton.
+- **Model number** — SOMETIMES contains encoded size info, but only trust
+  this when the digits cleanly match a standard tonnage code: 018, 024,
+  030, 036, 042, 048, or 060 = 1.5, 2, 2.5, 3, 3.5, 4, or 5 ton
+  respectively (e.g. "036" = 36,000 BTU = 3 ton). This is NOT universal
+  across manufacturers and model lines — if the digits don't cleanly match
+  one of those standard codes, don't force a tonnage guess out of them.
+  Real systems are sold in 0.5-ton steps, so an answer like "2.9 tons" is a
+  sign the code was misread, not a real answer. When the model number
+  doesn't clearly decode, say so and point to the AHRI directory
+  (www.ahridirectory.org — often printed right on the label) or the
+  manufacturer's own model lookup instead of guessing.
 - **BTU rating** — listed as "Input BTU" (gas consumed) and "Output BTU"
   (heat produced). Use INPUT BTU for sizing furnaces. For ACs/heat pumps,
   look for a BTU or tonnage figure directly on the label.

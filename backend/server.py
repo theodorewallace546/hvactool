@@ -17,6 +17,7 @@ import io
 import json
 import re
 import os
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -47,6 +48,23 @@ def get_client():
     if _client is None:
         _client = OpenAI(api_key=api_key)
     return _client
+
+
+def compute_age_years(manufacture_date: str):
+    """Deterministic age math — never trust an LLM to do date arithmetic
+    against "today." The model only reports what's printed on the label;
+    this does the actual subtraction.
+    """
+    if not manufacture_date:
+        return None
+    m = re.match(r"^(\d{4})(?:-(\d{2}))?$", manufacture_date.strip())
+    if not m:
+        return None
+    year = int(m.group(1))
+    month = int(m.group(2)) if m.group(2) else 6  # unknown month -> assume mid-year
+    today = date.today()
+    age = today.year - year - ((today.month, today.day) < (month, 1))
+    return age if age >= 0 else None
 
 
 def normalize_image_to_jpeg(data_url: str) -> str:
@@ -157,12 +175,22 @@ panel or condenser top/back panel).
 
 1. Read the model number and any BTU/tonnage figures visible on the label.
 2. Decode the model number and/or BTU rating into tonnage using the rules \
-in the knowledge base below.
-3. Look for an explicit manufacture date on the label. If none is visible, \
-do NOT guess age from a serial number — the knowledge base explains why. \
-Say plainly that age could not be determined from this photo, and suggest \
-the rep look it up via the manufacturer's official age lookup using the \
-brand and serial number.
+in the knowledge base below — but ONLY if the digits cleanly match a \
+standard tonnage code (e.g. 018/024/030/036/042/048/060 = 1.5/2/2.5/3/3.5/4/5 \
+ton). Do not force-fit a tonnage onto digits that don't cleanly match — \
+real systems are sold in 0.5-ton steps, so a result like "2.9 tons" is a \
+sign you guessed wrong, not a real answer. If the code doesn't clearly \
+match, say tonnage isn't confidently determinable from the model number, \
+and suggest the rep cross-check via the AHRI directory \
+(www.ahridirectory.org, often printed right on the label) or the \
+manufacturer's own model lookup.
+3. Look for an explicit manufacture date on the label. If you find one, \
+report it EXACTLY as printed — do not calculate an age yourself, the \
+server does that math deterministically. If no date is visible, do NOT \
+guess age from a serial number — the knowledge base explains why. Say \
+plainly that age could not be determined from this photo, and suggest the \
+rep look it up via the manufacturer's official age lookup using the brand \
+and serial number.
 4. If the nameplate is illegible or you can't confidently read the model \
 number, say so plainly rather than guessing.
 
@@ -173,9 +201,11 @@ Explain what you found to the rep in a few short, direct sentences.
 --- END KNOWLEDGE BASE ---
 
 End your response with a fenced JSON block on its own, in exactly this \
-format (use null where you don't have a confident value):
+format (use null where you don't have a confident value). manufacture_date \
+must be "YYYY-MM" if a month is visible, "YYYY" if only a year is visible, \
+or null — never a calculated age:
 ```json
-{{"model_number": <string or null>, "brand": <string or null>, "tonnage": <number or null>, "btu": <number or null>, "age_years": <number or null>, "age_source": "<'printed manufacture date' or 'not determinable' or null>"}}
+{{"model_number": <string or null>, "brand": <string or null>, "tonnage": <number or null>, "btu": <number or null>, "manufacture_date": "<YYYY-MM, YYYY, or null>", "age_source": "<'printed manufacture date' or 'not determinable' or null>"}}
 ```
 """
 
@@ -317,6 +347,7 @@ def nameplate():
 
     display_text, parsed = parse_structured(raw_answer)
     parsed = parsed or {}
+    age_years = compute_age_years(parsed.get("manufacture_date"))
 
     return jsonify({
         "answer": display_text,
@@ -324,7 +355,7 @@ def nameplate():
         "brand": parsed.get("brand"),
         "tonnage": parsed.get("tonnage"),
         "btu": parsed.get("btu"),
-        "age_years": parsed.get("age_years"),
+        "age_years": age_years,
         "age_source": parsed.get("age_source"),
     })
 
