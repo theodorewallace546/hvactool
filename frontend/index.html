@@ -371,6 +371,21 @@
   .project-item .p-btn:hover{color:var(--ink);}
   .project-item .p-btn.p-del:hover{color:var(--bad-ink);}
   #project-list .empty{padding:14px 8px; font-size:.8rem; color:var(--muted);}
+
+  /* Desktop: dock the sidebar permanently instead of hiding it behind the
+     hamburger — a hidden drawer is the right call on a phone (the primary
+     use case), but easy to miss on a wide screen where a persistent
+     sidebar is what people expect. */
+  @media (min-width: 900px){
+    body{flex-direction:row; align-items:stretch;}
+    #menu-btn{display:none;}
+    #sidebar-backdrop{display:none !important;}
+    #sidebar{
+      position:static; left:0; height:auto; box-shadow:none;
+      flex:0 0 280px; border-right:1px solid var(--border);
+    }
+    #app-content{flex:1; min-width:0; display:flex; flex-direction:column;}
+  }
 </style>
 </head>
 <body>
@@ -378,12 +393,13 @@
 <div id="sidebar-backdrop"></div>
 <div id="sidebar">
   <div id="sidebar-header">
-    <h2>Home Visits</h2>
+    <h2>Past Jobs</h2>
     <button id="new-visit-btn">+ New Visit</button>
   </div>
   <div id="project-list"></div>
 </div>
 
+<div id="app-content">
 <header>
   <button id="menu-btn" aria-label="Open visits list">&#9776;</button>
   <div class="header-titles">
@@ -418,6 +434,7 @@
   </section>
 
 </main>
+</div>
 
 <script>
 /* ============================================================
