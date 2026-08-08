@@ -1185,20 +1185,51 @@ function roomSizeSelectHtml(r) {
 }
 
 /* Step: list the individual rooms getting new ductwork (name + branch size) */
+function countExistingRoomsOfPrefix(prefix) {
+  return state.roomList.filter(r => new RegExp('^' + prefix + ' \\d+$').test(r.name)).length;
+}
+
+// Additive-only: adds whatever Bedroom N / Bathroom N rows are missing
+// relative to the address lookup's count, without touching or duplicating
+// rows that already exist (safe to click more than once, and safe if the
+// rep already renamed/removed some rows).
+function syncBedroomsBathrooms() {
+  const bedroomTarget = parseInt(state.bedrooms) || 0;
+  const bathroomTarget = parseInt(state.bathrooms) || 0;
+  const existingBedrooms = countExistingRoomsOfPrefix('Bedroom');
+  for (let i = existingBedrooms + 1; i <= bedroomTarget; i++) {
+    state.roomList.push({id: newRoomId(), name: `Bedroom ${i}`, size: 6, vents: 1});
+  }
+  const existingBathrooms = countExistingRoomsOfPrefix('Bathroom');
+  for (let i = existingBathrooms + 1; i <= bathroomTarget; i++) {
+    state.roomList.push({id: newRoomId(), name: `Bathroom ${i}`, size: 4, vents: 1});
+  }
+  saveState();
+}
+
 function renderRoomListStep() {
   ensureCurrentRoomListShape();
+
+  const bedroomTarget = parseInt(state.bedrooms) || 0;
+  const bathroomTarget = parseInt(state.bathrooms) || 0;
+  const missingBedrooms = Math.max(0, bedroomTarget - countExistingRoomsOfPrefix('Bedroom'));
+  const missingBathrooms = Math.max(0, bathroomTarget - countExistingRoomsOfPrefix('Bathroom'));
+  const hasMismatch = missingBedrooms > 0 || missingBathrooms > 0;
 
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <h2>List the rooms</h2>
     <p class="sub">One row per room. Bedrooms/bathrooms are pre-added individually from the earlier address lookup (so each one can be adjusted on its own) — rename, resize, remove, or add rooms to match the actual home.</p>
+    ${hasMismatch ? `<div class="result-box warn">The address lookup found ${bedroomTarget} bedroom(s) / ${bathroomTarget} bathroom(s), but the list below is missing ${missingBedrooms} bedroom row(s) and ${missingBathrooms} bathroom row(s). <button class="btn btn-secondary" id="sync-beds-baths-btn" style="margin-top:8px;">+ Add Missing Bedroom/Bathroom Rows</button></div>` : ''}
     <div id="room-rows"></div>
     <button class="btn btn-secondary" id="add-room-btn">+ Add Room</button>
   `;
   bodyEl.appendChild(card);
 
   const rowsEl = card.querySelector('#room-rows');
+  const syncBtn = card.querySelector('#sync-beds-baths-btn');
+  if (syncBtn) syncBtn.addEventListener('click', () => { syncBedroomsBathrooms(); renderWizard(); });
 
   function renderRows() {
     rowsEl.innerHTML = state.roomList.map(r => `
@@ -1241,6 +1272,7 @@ function renderVentCountStep() {
   card.innerHTML = `
     <h2>Confirm vents & duct design</h2>
     <p class="sub">Confirm how many vents each room actually needs, and its branch size — a bigger room may need more than one vent.</p>
+    <div id="vent-reconcile-box"></div>
     <div id="vent-rows"></div>
     <div id="trunk-design-box"></div>
   `;
@@ -1248,9 +1280,26 @@ function renderVentCountStep() {
 
   const rowsEl = card.querySelector('#vent-rows');
   const trunkBox = card.querySelector('#trunk-design-box');
+  const reconcileBox = card.querySelector('#vent-reconcile-box');
+
+  function updateReconcileBox() {
+    const target = parseInt(state.currentVentCount);
+    if (!target) { reconcileBox.innerHTML = ''; return; }
+    const actual = state.roomList.reduce((sum, r) => sum + (parseInt(r.vents) || 0), 0);
+    const gap = target - actual;
+    const roomCount = state.roomList.length;
+    if (gap > 0) {
+      reconcileBox.innerHTML = `<div class="result-box warn">You counted ${target} total vents in the home, but these ${roomCount} rooms only add up to ${actual} so far — ${gap} vent${gap === 1 ? '' : 's'} still unaccounted for. That likely means one or more rooms actually have more than one vent — bump the count on whichever room(s) it is.</div>`;
+    } else if (gap < 0) {
+      reconcileBox.innerHTML = `<div class="result-box warn">These rooms add up to ${actual} vents, more than the ${target} you counted in the home — double-check the room vent counts against what's actually there.</div>`;
+    } else {
+      reconcileBox.innerHTML = `<div class="result-box good">Matches your counted total of ${target} vents.</div>`;
+    }
+  }
 
   function recompute() {
     saveState();
+    updateReconcileBox();
 
     const branches = [];
     state.roomList.forEach(r => {
