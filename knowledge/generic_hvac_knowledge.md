@@ -254,7 +254,12 @@ CFM formula) for new-duct design:
 | 6" + 6" | 8" |
 | 8" + 8" | 10" |
 | 8" + 10" | 12" |
+| 10" + 10" | 14" |
 | 10" + 12" | 14" |
+
+Note: 6" never combines directly with 10" — there's no defined step for
+that pair. A lone unpaired 6" with no other 6" to join needs a real design
+call, not a forced guess.
 
 Work through branches smallest to largest, combining sequentially — e.g. a
 job with 2 small rooms (4"), 1 standard room (6"), 2 larger rooms (8"), and
