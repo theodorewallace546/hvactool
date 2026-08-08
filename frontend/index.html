@@ -1079,31 +1079,50 @@ const TRUNK_COMBINE_RULES = [
   {a: 10, b: 12, result: 14},
 ];
 
-function lookupCombine(x, y) {
-  const rule = TRUNK_COMBINE_RULES.find(r => (r.a === x && r.b === y) || (r.a === y && r.b === x));
-  return rule ? rule.result : null;
+function findCombineRule(x, y) {
+  return TRUNK_COMBINE_RULES.find(r => (r.a === x && r.b === y) || (r.a === y && r.b === x)) || null;
+}
+
+// At each step, prefer pairing two branches of the SAME size (smallest
+// size first) - that's how real branches actually join at a wye/tee.
+// Only when no same-size pair is available does an odd leftover merge
+// into an already-upsized trunk via a cross-size rule (e.g. 8"+10"->12").
+function findBestCombinablePair(multiset) {
+  const sizes = [...new Set(multiset)].sort((a, b) => a - b);
+  for (const s of sizes) {
+    const count = multiset.filter(x => x === s).length;
+    if (count >= 2) {
+      const rule = findCombineRule(s, s);
+      if (rule) return {a: s, b: s, result: rule.result};
+    }
+  }
+  const crossRules = TRUNK_COMBINE_RULES.filter(r => r.a !== r.b).sort((r1, r2) => (r1.a + r1.b) - (r2.a + r2.b));
+  for (const rule of crossRules) {
+    if (multiset.includes(rule.a) && multiset.includes(rule.b)) {
+      return {a: rule.a, b: rule.b, result: rule.result};
+    }
+  }
+  return null;
 }
 
 // Reduces a flat list of branch duct sizes into the trunk size needed at
 // the plenum, using EM's field combine convention (not a generic CFM
-// formula - see knowledge base). Assumes one continuous trunk picking up
-// branches in ascending size order; a real multi-trunk layout would need
-// smaller connections per trunk than this single-trunk worst case.
+// formula - see knowledge base). Assumes one continuous trunk gathering
+// all branches; a real multi-trunk layout would need smaller connections
+// per trunk than this single-trunk worst case.
 function designTrunk(branchSizes) {
-  const sorted = [...branchSizes].sort((a, b) => a - b);
-  if (!sorted.length) return null;
-  let current = sorted[0];
+  let multiset = [...branchSizes];
+  if (!multiset.length) return null;
   const steps = [];
-  for (let i = 1; i < sorted.length; i++) {
-    const next = sorted[i];
-    const result = lookupCombine(current, next);
-    if (result === null) {
-      return {steps, final: current, unresolved: true, stuckAt: current, nextBranch: next};
-    }
-    steps.push({from: current, added: next, to: result});
-    current = result;
+  while (multiset.length > 1) {
+    const pair = findBestCombinablePair(multiset);
+    if (!pair) return {steps, unresolved: true, remaining: [...multiset]};
+    multiset.splice(multiset.indexOf(pair.a), 1);
+    multiset.splice(multiset.indexOf(pair.b), 1);
+    multiset.push(pair.result);
+    steps.push({from: pair.a, added: pair.b, to: pair.result});
   }
-  return {steps, final: current, unresolved: false};
+  return {steps, final: multiset[0], unresolved: false};
 }
 
 function renderVentCountStep() {
@@ -1149,7 +1168,8 @@ function renderVentCountStep() {
     const design = designTrunk(branches);
     let html = `<div class="result-box">${design.steps.map(s => `${s.from}" + ${s.added}" → ${s.to}"`).join('<br>') || 'Single branch, no combining needed.'}</div>`;
     if (design.unresolved) {
-      html += `<div class="result-box warn">No defined combine step from ${design.stuckAt}" + ${design.nextBranch}" — this layout needs a real duct design rather than this quick estimate. Flag it for a proper Manual D calculation.</div>`;
+      const remainingStr = design.remaining.map(s => `${s}"`).join(' + ');
+      html += `<div class="result-box warn">No defined combine step for the remaining ${remainingStr} — this layout needs a real duct design rather than this quick estimate. Flag it for a proper Manual D calculation.</div>`;
     } else {
       html += `<div class="result-box good"><strong>Plenum connection needed: ${design.final}"</strong><br>Verify the plenum has enough surface area to fit a ${design.final}" connection before quoting this layout.</div>`;
     }
