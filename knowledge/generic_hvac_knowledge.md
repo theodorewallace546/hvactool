@@ -228,7 +228,16 @@ room type:
 |---|---|
 | 4" | Bathrooms, laundry rooms, walk-in closets |
 | 6" | Bedrooms, offices (standard rooms) |
-| 8" | Larger rooms |
+| 8" | Larger rooms (living room, dining room) |
+
+Kitchens are an exception worth checking on-site — they're sometimes small
+enough to only need a 6" branch rather than the 8" a "larger room" would
+normally get. Default to 6" for a kitchen and bump to 8" if it's actually
+large, rather than assuming 8" automatically.
+
+Larger rooms often need more than one vent — count vents needed per room,
+not just the room count, when a space is big enough to require multiple
+registers.
 
 No odd sizes (5", 7", 9") for new branch runs — those only show up when
 assessing existing ductwork someone else installed.

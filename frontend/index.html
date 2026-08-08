@@ -330,6 +330,17 @@
   .add-svc-item:hover{background:var(--bubble-bot);}
   .photo-required-note{font-size:.72rem; color:var(--bad-ink); margin:-6px 0 10px 0;}
 
+  /* Room list / vent confirm steps */
+  .room-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .room-row .room-name{flex:1; margin-bottom:0;}
+  .room-row .room-count{width:60px; margin-bottom:0;}
+  .room-row .room-size{width:70px; margin-bottom:0;}
+  .room-row .room-rm{background:none; border:none; color:var(--bad-ink); cursor:pointer; font-size:1rem; padding:2px 6px; flex:0 0 auto;}
+  .room-row-label{flex:1; font-size:.9rem; font-weight:600;}
+  .room-row-x{color:var(--muted); font-size:.82rem; flex:0 0 16px; text-align:center;}
+  .room-row-total{width:60px; text-align:right; font-size:.85rem; font-weight:700; flex:0 0 60px;}
+  #add-room-btn{margin-top:4px;}
+
   /* Sidebar (projects) */
   header{position:relative; display:flex; align-items:center; gap:12px;}
   #menu-btn{
@@ -536,7 +547,7 @@ const PROJECTS_KEY = 'hvac_qa_projects';
 
 const STEPS = [
   'address', 'confirm-sqft', 'sizing', 'nameplate', 'advice',
-  'cfm', 'duct-tally', 'vent-count', 'asbestos', 'duct-condition',
+  'cfm', 'duct-tally', 'room-list', 'vent-count', 'asbestos', 'duct-condition',
   'attic', 'crawlspace', 'quote'
 ];
 
@@ -564,7 +575,7 @@ function defaultState() {
     currentVentCount: '',
     bedrooms: null,
     bathrooms: null,
-    ventsByType: {small: '', standard: '', large: ''},
+    roomList: [],            // [{id, name, size, roomCount, ventsPerRoom}, ...]
     asbestos: {photo: null, whiteMaterial: '', preBuilt: ''},
     ductCondition: {rating: '', note: '', photo: null},
     atticInsulation: {rating: '', note: '', photo: null, needsReplacement: false, atticSqft: ''},
@@ -737,8 +748,8 @@ const bodyEl = document.getElementById('wizard-body');
 
 function stepTitle(i) {
   return ['Address', 'Square Footage', 'Recommended Size', 'Nameplate', 'Advice',
-          'Duct CFM Needed', 'Current Vent Count', 'Vent/Duct Count', 'Asbestos Check',
-          'Duct Condition', 'Attic Insulation', 'Crawlspace', 'Quote'][i];
+          'Duct CFM Needed', 'Current Vent Count', 'Room List', 'Confirm Vents & Ducting',
+          'Asbestos Check', 'Duct Condition', 'Attic Insulation', 'Crawlspace', 'Quote'][i];
 }
 
 function renderWizard() {
@@ -753,6 +764,7 @@ function renderWizard() {
     'advice': renderAdviceStep,
     'cfm': renderCfmStep,
     'duct-tally': renderDuctTallyStep,
+    'room-list': renderRoomListStep,
     'vent-count': renderVentCountStep,
     'asbestos': renderAsbestosStep,
     'duct-condition': () => renderInspectionStep('ductCondition', 'Duct Condition',
@@ -1125,48 +1137,108 @@ function designTrunk(branchSizes) {
   return {steps, final: multiset[0], unresolved: false};
 }
 
-function renderVentCountStep() {
-  const v = state.ventsByType;
-  let prefilled = false;
-  if (v.small === '' && state.bathrooms) { v.small = String(state.bathrooms); prefilled = true; }
-  if (v.standard === '' && state.bedrooms) { v.standard = String(state.bedrooms); prefilled = true; }
-  // Baseline assumption: living room, dining room, kitchen = 1 vent each
-  // to start. Rep adjusts from here — large rooms often need more than
-  // one vent, and not every home has all three as separate rooms.
-  if (v.large === '') { v.large = '3'; prefilled = true; }
+function newRoomId() {
+  return 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function buildDefaultRoomList() {
+  return [
+    // Kitchens are sometimes small enough to only need a 6" branch, not
+    // always 8" like other larger rooms — default to 6", rep bumps to 8"
+    // if it's actually a big kitchen.
+    {id: newRoomId(), name: 'Kitchen', size: 6, roomCount: 1, ventsPerRoom: 1},
+    {id: newRoomId(), name: 'Living Room', size: 8, roomCount: 1, ventsPerRoom: 1},
+    {id: newRoomId(), name: 'Dining Room', size: 8, roomCount: 1, ventsPerRoom: 1},
+    {id: newRoomId(), name: 'Bedrooms', size: 6, roomCount: state.bedrooms || '', ventsPerRoom: 1},
+    {id: newRoomId(), name: 'Bathrooms', size: 4, roomCount: state.bathrooms || '', ventsPerRoom: 1},
+  ];
+}
+
+/* Step: list the rooms getting new ductwork (name, count, branch size) */
+function renderRoomListStep() {
+  if (!state.roomList.length) state.roomList = buildDefaultRoomList();
 
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <h2>Count vents needing new ductwork</h2>
-    <p class="sub">Count vents by type — this drives both the duct/boot line items in the quote and the trunk sizing below.</p>
-    ${prefilled ? `<div class="result-box warn">Pre-filled as a starting point — bedrooms/bathrooms from the address lookup, larger rooms defaulted to 3 (living room, dining room, kitchen). Confirm all three against the actual home: not every bedroom/bathroom necessarily needs new ductwork, the home may not have all three common areas as separate rooms, and larger rooms often need more than one vent — adjust the count up if so.</div>` : ''}
-    <label class="field-label" for="vents-small">Bathrooms, laundry rooms, walk-in closets (4" branch)</label>
-    <input type="number" min="0" id="vents-small" placeholder="0" value="${v.small || ''}">
-    <label class="field-label" for="vents-standard">Bedrooms, offices (6" branch)</label>
-    <input type="number" min="0" id="vents-standard" placeholder="0" value="${v.standard || ''}">
-    <label class="field-label" for="vents-large">Living room, dining room, kitchen, and other larger rooms — count vents needed, not just rooms (8" branch each)</label>
-    <input type="number" min="0" id="vents-large" placeholder="0" value="${v.large || ''}">
+    <h2>List the rooms</h2>
+    <p class="sub">List rooms getting new ductwork. Kitchen, living room, and dining room start pre-added at 1 each — bedrooms/bathrooms are pulled from the earlier address lookup. Adjust counts and branch sizes to match the actual home, and add any other rooms.</p>
+    <div id="room-rows"></div>
+    <button class="btn btn-secondary" id="add-room-btn">+ Add Room</button>
+  `;
+  bodyEl.appendChild(card);
+
+  const rowsEl = card.querySelector('#room-rows');
+
+  function renderRows() {
+    rowsEl.innerHTML = state.roomList.map(r => `
+      <div class="room-row" data-id="${r.id}">
+        <input type="text" class="room-name" placeholder="Room name" value="${escapeHtml(r.name)}">
+        <input type="number" min="0" class="room-count" placeholder="Count" value="${r.roomCount}">
+        <select class="room-size">
+          <option value="4" ${r.size === 4 ? 'selected' : ''}>4"</option>
+          <option value="6" ${r.size === 6 ? 'selected' : ''}>6"</option>
+          <option value="8" ${r.size === 8 ? 'selected' : ''}>8"</option>
+        </select>
+        <button class="room-rm" data-id="${r.id}" title="Remove">✕</button>
+      </div>
+    `).join('');
+
+    rowsEl.querySelectorAll('.room-row').forEach(rowEl => {
+      const id = rowEl.dataset.id;
+      const room = state.roomList.find(r => r.id === id);
+      rowEl.querySelector('.room-name').addEventListener('input', (e) => { room.name = e.target.value; saveState(); });
+      rowEl.querySelector('.room-count').addEventListener('input', (e) => { room.roomCount = e.target.value; saveState(); });
+      rowEl.querySelector('.room-size').addEventListener('change', (e) => { room.size = parseInt(e.target.value); saveState(); });
+      rowEl.querySelector('.room-rm').addEventListener('click', () => {
+        state.roomList = state.roomList.filter(r => r.id !== id);
+        saveState();
+        renderRows();
+      });
+    });
+  }
+  renderRows();
+
+  card.querySelector('#add-room-btn').addEventListener('click', () => {
+    state.roomList.push({id: newRoomId(), name: '', size: 6, roomCount: 1, ventsPerRoom: 1});
+    saveState();
+    renderRows();
+  });
+
+  navButtons(card, {});
+}
+
+/* Step: confirm vents per room, then run the trunk design calculator */
+function renderVentCountStep() {
+  if (!state.roomList.length) state.roomList = buildDefaultRoomList();
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h2>Confirm vents & duct design</h2>
+    <p class="sub">Confirm how many vents each room actually needs — larger rooms often need more than one. Room count × vents per room = total vents for that row.</p>
+    <div id="vent-rows"></div>
     <div id="trunk-design-box"></div>
   `;
   bodyEl.appendChild(card);
 
-  const smallInput = card.querySelector('#vents-small');
-  const standardInput = card.querySelector('#vents-standard');
-  const largeInput = card.querySelector('#vents-large');
+  const rowsEl = card.querySelector('#vent-rows');
   const trunkBox = card.querySelector('#trunk-design-box');
 
   function recompute() {
-    v.small = smallInput.value;
-    v.standard = standardInput.value;
-    v.large = largeInput.value;
     saveState();
+    rowsEl.querySelectorAll('.room-row').forEach(rowEl => {
+      const id = rowEl.dataset.id;
+      const room = state.roomList.find(r => r.id === id);
+      const total = (parseInt(room.roomCount) || 0) * (parseInt(room.ventsPerRoom) || 0);
+      rowEl.querySelector('.room-row-total').textContent = total;
+    });
 
-    const branches = [
-      ...Array(parseInt(v.small) || 0).fill(4),
-      ...Array(parseInt(v.standard) || 0).fill(6),
-      ...Array(parseInt(v.large) || 0).fill(8),
-    ];
+    const branches = [];
+    state.roomList.forEach(r => {
+      const total = (parseInt(r.roomCount) || 0) * (parseInt(r.ventsPerRoom) || 0);
+      for (let i = 0; i < total; i++) branches.push(r.size);
+    });
     if (!branches.length) { trunkBox.innerHTML = ''; return; }
 
     const design = designTrunk(branches);
@@ -1180,8 +1252,24 @@ function renderVentCountStep() {
     trunkBox.innerHTML = html;
   }
 
-  [smallInput, standardInput, largeInput].forEach(inp => inp.addEventListener('input', recompute));
-  recompute();
+  function renderRows() {
+    rowsEl.innerHTML = state.roomList.map(r => `
+      <div class="room-row" data-id="${r.id}">
+        <div class="room-row-label">${escapeHtml(r.name || 'Unnamed room')} (${r.size}")</div>
+        <span class="room-row-x">${r.roomCount || 0}×</span>
+        <input type="number" min="0" class="room-count room-vents-per" placeholder="Vents" value="${r.ventsPerRoom}">
+        <span class="room-row-total">0</span>
+      </div>
+    `).join('');
+
+    rowsEl.querySelectorAll('.room-row').forEach(rowEl => {
+      const id = rowEl.dataset.id;
+      const room = state.roomList.find(r => r.id === id);
+      rowEl.querySelector('.room-vents-per').addEventListener('input', (e) => { room.ventsPerRoom = e.target.value; recompute(); });
+    });
+    recompute();
+  }
+  renderRows();
 
   navButtons(card, {});
 }
@@ -1414,7 +1502,7 @@ function buildAutoQuoteItems() {
     addItem('A/C Removal & Disposal', 'variable', 1, null);
   }
 
-  const ventCount = (parseInt(state.ventsByType.small) || 0) + (parseInt(state.ventsByType.standard) || 0) + (parseInt(state.ventsByType.large) || 0);
+  const ventCount = state.roomList.reduce((sum, r) => sum + (parseInt(r.roomCount) || 0) * (parseInt(r.ventsPerRoom) || 0), 0);
   if (ventCount > 0) {
     addItem('Air Duct Replacement', 'per_unit', ventCount, null);
     addItem('Vent Boots Installation', 'per_unit', ventCount, null);
