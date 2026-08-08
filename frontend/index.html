@@ -916,7 +916,7 @@ function renderNameplateStep() {
   card.className = 'card';
   card.innerHTML = `
     <h2>Existing system nameplate</h2>
-    <p class="sub">Find the nameplate sticker — inside the furnace side panel, or the top/back panel of the condenser. Photo required.</p>
+    <p class="sub">Find the nameplate sticker — inside the furnace side panel, or the top/back panel of the condenser. Photo it if you can; if it's too worn to photograph clearly, enter what you can read manually below.</p>
     <label class="photo-btn" for="nameplate-photo-input">Tap to take or choose a photo</label>
     <input type="file" id="nameplate-photo-input" accept="image/*" capture="environment" style="display:none;">
     <div class="preview-wrap" id="nameplate-preview">${state.nameplatePhoto ? `<img src="${state.nameplatePhoto}">` : ''}</div>
@@ -977,11 +977,16 @@ function renderNameplateStep() {
     }
   });
 
-  tonsInput.addEventListener('input', () => { state.existingTonsOverride = tonsInput.value; saveState(); });
-  ageInput.addEventListener('input', () => { state.existingAgeOverride = ageInput.value; saveState(); });
+  function refreshNextEnabled() {
+    const nextBtn = card.querySelector('.btn-row .btn-primary');
+    if (nextBtn) nextBtn.disabled = !state.nameplatePhoto && !tonsInput.value && !ageInput.value;
+  }
+
+  tonsInput.addEventListener('input', () => { state.existingTonsOverride = tonsInput.value; saveState(); refreshNextEnabled(); });
+  ageInput.addEventListener('input', () => { state.existingAgeOverride = ageInput.value; saveState(); refreshNextEnabled(); });
 
   navButtons(card, {
-    nextDisabled: !state.nameplatePhoto,
+    nextDisabled: !state.nameplatePhoto && !state.existingTonsOverride && !state.existingAgeOverride,
     onNext: () => { state.existingTonsOverride = tonsInput.value; state.existingAgeOverride = ageInput.value; }
   });
 }
