@@ -567,7 +567,7 @@ function defaultState() {
     existingTonsOverride: '',
     existingAgeOverride: '',
     ductCounts: {},         // {6: 2, 10: 3, ...}
-    ventCount: '',
+    ventsByType: {small: '', standard: '', large: ''},
     asbestos: {photo: null, whiteMaterial: '', preBuilt: ''},
     ductCondition: {rating: '', note: '', photo: null},
     atticInsulation: {rating: '', note: '', photo: null, needsReplacement: false, atticSqft: ''},
@@ -1105,19 +1105,90 @@ function renderDuctTallyStep() {
 }
 
 /* Vent/duct replacement count — drives quote line items directly */
+const TRUNK_COMBINE_RULES = [
+  {a: 4, b: 4, result: 6},
+  {a: 6, b: 6, result: 8},
+  {a: 8, b: 8, result: 10},
+  {a: 8, b: 10, result: 12},
+  {a: 10, b: 12, result: 14},
+];
+
+function lookupCombine(x, y) {
+  const rule = TRUNK_COMBINE_RULES.find(r => (r.a === x && r.b === y) || (r.a === y && r.b === x));
+  return rule ? rule.result : null;
+}
+
+// Reduces a flat list of branch duct sizes into the trunk size needed at
+// the plenum, using EM's field combine convention (not a generic CFM
+// formula - see knowledge base). Assumes one continuous trunk picking up
+// branches in ascending size order; a real multi-trunk layout would need
+// smaller connections per trunk than this single-trunk worst case.
+function designTrunk(branchSizes) {
+  const sorted = [...branchSizes].sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  let current = sorted[0];
+  const steps = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const next = sorted[i];
+    const result = lookupCombine(current, next);
+    if (result === null) {
+      return {steps, final: current, unresolved: true, stuckAt: current, nextBranch: next};
+    }
+    steps.push({from: current, added: next, to: result});
+    current = result;
+  }
+  return {steps, final: current, unresolved: false};
+}
+
 function renderVentCountStep() {
+  const v = state.ventsByType;
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <h2>Count vents needing new ductwork</h2>
-    <p class="sub">Count the vents/registers that need a new duct run and boot. This number drives both the duct replacement and vent boot line items in the quote.</p>
-    <label class="field-label" for="vent-count-input">Vents needing new ductwork</label>
-    <input type="number" min="0" id="vent-count-input" placeholder="e.g. 8" value="${state.ventCount || ''}">
+    <p class="sub">Count new-duct rooms by type — this drives both the duct/boot line items in the quote and the trunk sizing below.</p>
+    <label class="field-label" for="vents-small">Bathrooms, laundry rooms, walk-in closets (4" branch)</label>
+    <input type="number" min="0" id="vents-small" placeholder="0" value="${v.small || ''}">
+    <label class="field-label" for="vents-standard">Bedrooms, offices (6" branch)</label>
+    <input type="number" min="0" id="vents-standard" placeholder="0" value="${v.standard || ''}">
+    <label class="field-label" for="vents-large">Larger rooms (8" branch)</label>
+    <input type="number" min="0" id="vents-large" placeholder="0" value="${v.large || ''}">
+    <div id="trunk-design-box"></div>
   `;
   bodyEl.appendChild(card);
-  const input = card.querySelector('#vent-count-input');
-  input.addEventListener('input', () => { state.ventCount = input.value; saveState(); });
-  navButtons(card, {onNext: () => { state.ventCount = input.value; }});
+
+  const smallInput = card.querySelector('#vents-small');
+  const standardInput = card.querySelector('#vents-standard');
+  const largeInput = card.querySelector('#vents-large');
+  const trunkBox = card.querySelector('#trunk-design-box');
+
+  function recompute() {
+    v.small = smallInput.value;
+    v.standard = standardInput.value;
+    v.large = largeInput.value;
+    saveState();
+
+    const branches = [
+      ...Array(parseInt(v.small) || 0).fill(4),
+      ...Array(parseInt(v.standard) || 0).fill(6),
+      ...Array(parseInt(v.large) || 0).fill(8),
+    ];
+    if (!branches.length) { trunkBox.innerHTML = ''; return; }
+
+    const design = designTrunk(branches);
+    let html = `<div class="result-box">${design.steps.map(s => `${s.from}" + ${s.added}" → ${s.to}"`).join('<br>') || 'Single branch, no combining needed.'}</div>`;
+    if (design.unresolved) {
+      html += `<div class="result-box warn">No defined combine step from ${design.stuckAt}" + ${design.nextBranch}" — this layout needs a real duct design rather than this quick estimate. Flag it for a proper Manual D calculation.</div>`;
+    } else {
+      html += `<div class="result-box good"><strong>Plenum connection needed: ${design.final}"</strong><br>Verify the plenum has enough surface area to fit a ${design.final}" connection before quoting this layout.</div>`;
+    }
+    trunkBox.innerHTML = html;
+  }
+
+  [smallInput, standardInput, largeInput].forEach(inp => inp.addEventListener('input', recompute));
+  recompute();
+
+  navButtons(card, {});
 }
 
 /* Asbestos flag — rep-observed, mandatory photo, not an AI diagnosis */
@@ -1348,7 +1419,7 @@ function buildAutoQuoteItems() {
     addItem('A/C Removal & Disposal', 'variable', 1, null);
   }
 
-  const ventCount = parseInt(state.ventCount) || 0;
+  const ventCount = (parseInt(state.ventsByType.small) || 0) + (parseInt(state.ventsByType.standard) || 0) + (parseInt(state.ventsByType.large) || 0);
   if (ventCount > 0) {
     addItem('Air Duct Replacement', 'per_unit', ventCount, null);
     addItem('Vent Boots Installation', 'per_unit', ventCount, null);

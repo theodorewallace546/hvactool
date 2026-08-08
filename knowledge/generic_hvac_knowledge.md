@@ -218,6 +218,51 @@ friction rate on most metal duct calculators — a standard design parameter,
 not a hard conversion; treat as directional when cross-checking metal duct
 sizing tools.
 
+## New branch duct sizing — standard sizes only
+
+For NEW duct runs being installed (as opposed to assessing what's already
+in a home, which can be any size), only use three branch sizes based on
+room type:
+
+| Branch size | Room type |
+|---|---|
+| 4" | Bathrooms, laundry rooms, walk-in closets |
+| 6" | Bedrooms, offices (standard rooms) |
+| 8" | Larger rooms |
+
+No odd sizes (5", 7", 9") for new branch runs — those only show up when
+assessing existing ductwork someone else installed.
+
+## Trunk sizing — how branches combine toward the plenum
+
+As branch ducts run back toward the plenum, they combine into
+progressively larger trunk segments. Use this combine table (not a generic
+CFM formula) for new-duct design:
+
+| Combining | Results in |
+|---|---|
+| 4" + 4" | 6" |
+| 6" + 6" | 8" |
+| 8" + 8" | 10" |
+| 8" + 10" | 12" |
+| 10" + 12" | 14" |
+
+Work through branches smallest to largest, combining sequentially — e.g. a
+job with 2 small rooms (4"), 1 standard room (6"), 2 larger rooms (8"), and
+1 already-10"-equivalent trunk segment combines as: 4"+4"→6", then
++6"→8", then +8"→10", then +8"→12", then +10"→14". The final result is the
+duct size needed at the plenum connection.
+
+**Always verify the plenum has enough surface area to physically fit the
+final combined connection size** before finalizing a design — a correct
+CFM/size calculation doesn't help if the duct can't actually be mounted
+where it needs to attach.
+
+This combine table only covers what's listed above. If a layout needs a
+combining step beyond it (uncommon sizes, more than one trunk line meeting
+at the plenum, etc.), that calls for an actual Manual D duct design, not
+this quick-reference table.
+
 ## Manual D — how duct systems are actually designed
 
 Manual D ("Residential Duct Systems") is ACCA's industry-standard method for
