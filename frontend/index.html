@@ -87,17 +87,20 @@
     display:flex;
     flex-direction:column;
     overflow:hidden;
+    min-height:0;
     max-width:640px;
     width:100%;
     margin:0 auto;
   }
-  .view{display:none; flex:1; flex-direction:column; overflow:hidden;}
+  .view{display:none; flex:1; flex-direction:column; overflow:hidden; min-height:0;}
   .view.active{display:flex;}
 
   /* Chat view */
   #chat-log{
     flex:1;
+    min-height:0;
     overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
     padding:16px;
     display:flex;
     flex-direction:column;
@@ -185,7 +188,9 @@
   }
   #wizard-body{
     flex:1;
+    min-height:0;
     overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
     padding:14px 18px 18px 18px;
   }
   .card{
