@@ -1185,51 +1185,49 @@ function roomSizeSelectHtml(r) {
 }
 
 /* Step: list the individual rooms getting new ductwork (name + branch size) */
-function countExistingRoomsOfPrefix(prefix) {
-  return state.roomList.filter(r => new RegExp('^' + prefix + ' \\d+$').test(r.name)).length;
-}
-
 // Additive-only: adds whatever Bedroom N / Bathroom N rows are missing
 // relative to the address lookup's count, without touching or duplicating
 // rows that already exist (safe to click more than once, and safe if the
 // rep already renamed/removed some rows).
+function syncRoomPrefix(prefix, size, target) {
+  const usedNumbers = new Set(
+    state.roomList
+      .map(r => { const m = new RegExp('^' + prefix + ' (\\d+)$').exec(r.name); return m ? parseInt(m[1]) : null; })
+      .filter(n => n !== null)
+  );
+  let added = 0;
+  for (let i = 1; i <= target; i++) {
+    if (!usedNumbers.has(i)) {
+      state.roomList.push({id: newRoomId(), name: `${prefix} ${i}`, size, vents: 1});
+      added++;
+    }
+  }
+  return added;
+}
+
 function syncBedroomsBathrooms() {
-  const bedroomTarget = parseInt(state.bedrooms) || 0;
-  const bathroomTarget = parseInt(state.bathrooms) || 0;
-  const existingBedrooms = countExistingRoomsOfPrefix('Bedroom');
-  for (let i = existingBedrooms + 1; i <= bedroomTarget; i++) {
-    state.roomList.push({id: newRoomId(), name: `Bedroom ${i}`, size: 6, vents: 1});
-  }
-  const existingBathrooms = countExistingRoomsOfPrefix('Bathroom');
-  for (let i = existingBathrooms + 1; i <= bathroomTarget; i++) {
-    state.roomList.push({id: newRoomId(), name: `Bathroom ${i}`, size: 4, vents: 1});
-  }
-  saveState();
+  const added = syncRoomPrefix('Bedroom', 6, parseInt(state.bedrooms) || 0)
+              + syncRoomPrefix('Bathroom', 4, parseInt(state.bathrooms) || 0);
+  if (added > 0) saveState();
+  return added;
 }
 
 function renderRoomListStep() {
   ensureCurrentRoomListShape();
-
-  const bedroomTarget = parseInt(state.bedrooms) || 0;
-  const bathroomTarget = parseInt(state.bathrooms) || 0;
-  const missingBedrooms = Math.max(0, bedroomTarget - countExistingRoomsOfPrefix('Bedroom'));
-  const missingBathrooms = Math.max(0, bathroomTarget - countExistingRoomsOfPrefix('Bathroom'));
-  const hasMismatch = missingBedrooms > 0 || missingBathrooms > 0;
+  const justAdded = syncBedroomsBathrooms();
 
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <h2>List the rooms</h2>
-    <p class="sub">One row per room. Bedrooms/bathrooms are pre-added individually from the earlier address lookup (so each one can be adjusted on its own) — rename, resize, remove, or add rooms to match the actual home.</p>
-    ${hasMismatch ? `<div class="result-box warn">The address lookup found ${bedroomTarget} bedroom(s) / ${bathroomTarget} bathroom(s), but the list below is missing ${missingBedrooms} bedroom row(s) and ${missingBathrooms} bathroom row(s). <button class="btn btn-secondary" id="sync-beds-baths-btn" style="margin-top:8px;">+ Add Missing Bedroom/Bathroom Rows</button></div>` : ''}
+    <p class="sub">One row per room. Bedrooms/bathrooms are pulled in automatically from the earlier address lookup (so each one can be adjusted on its own) — rename, resize, remove, or add rooms to match the actual home.</p>
+    ${justAdded > 0 ? `<div class="result-box good">Added ${justAdded} bedroom/bathroom row${justAdded === 1 ? '' : 's'} from the address lookup.</div>` : ''}
     <div id="room-rows"></div>
     <button class="btn btn-secondary" id="add-room-btn">+ Add Room</button>
   `;
   bodyEl.appendChild(card);
 
   const rowsEl = card.querySelector('#room-rows');
-  const syncBtn = card.querySelector('#sync-beds-baths-btn');
-  if (syncBtn) syncBtn.addEventListener('click', () => { syncBedroomsBathrooms(); renderWizard(); });
 
   function renderRows() {
     rowsEl.innerHTML = state.roomList.map(r => `
