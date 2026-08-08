@@ -296,9 +296,6 @@
   .rating-btn.selected.warn{background:var(--warn-bg); border-color:var(--warn-border); color:var(--warn-ink);}
   .rating-btn.selected.bad{background:var(--bad-bg); border-color:var(--bad-border); color:var(--bad-ink);}
 
-  .duct-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin-bottom:6px;}
-  .duct-grid label{font-size:.82rem; color:var(--ink);}
-  .duct-grid input{margin-bottom:0;}
 
   .summary-item{padding:10px 0; border-bottom:1px solid var(--border);}
   .summary-item:last-child{border-bottom:none;}
@@ -543,8 +540,6 @@ const STEPS = [
   'attic', 'crawlspace', 'quote'
 ];
 
-const DUCT_CHART = {5:50, 6:75, 7:110, 8:160, 9:225, 10:300, 12:480, 14:700, 16:1000, 18:1300, 20:1700};
-
 const AC_CLIMATE_RANGES = {
   hot: [400, 500],
   moderate: [500, 600],
@@ -566,7 +561,9 @@ function defaultState() {
     nameplatePhoto: null,
     existingTonsOverride: '',
     existingAgeOverride: '',
-    ductCounts: {},         // {6: 2, 10: 3, ...}
+    currentVentCount: '',
+    bedrooms: null,
+    bathrooms: null,
     ventsByType: {small: '', standard: '', large: ''},
     asbestos: {photo: null, whiteMaterial: '', preBuilt: ''},
     ductCondition: {rating: '', note: '', photo: null},
@@ -740,7 +737,7 @@ const bodyEl = document.getElementById('wizard-body');
 
 function stepTitle(i) {
   return ['Address', 'Square Footage', 'Recommended Size', 'Nameplate', 'Advice',
-          'Duct CFM Needed', 'Current Ducts', 'Vent/Duct Count', 'Asbestos Check',
+          'Duct CFM Needed', 'Current Vent Count', 'Vent/Duct Count', 'Asbestos Check',
           'Duct Condition', 'Attic Insulation', 'Crawlspace', 'Quote'][i];
 }
 
@@ -833,6 +830,8 @@ function renderAddressStep() {
       } else {
         state.sqftLookup = data;
         if (data.sqft) state.confirmedSqft = data.sqft;
+        if (data.bedrooms) state.bedrooms = data.bedrooms;
+        if (data.bathrooms) state.bathrooms = data.bathrooms;
         renderLookupResult(resultDiv, data);
       }
     } catch (e) {
@@ -849,8 +848,9 @@ function renderAddressStep() {
 
 function renderLookupResult(container, data) {
   const cls = data.confident && data.sqft ? 'good' : 'warn';
-  const sqftLine = data.sqft ? `<strong>${data.sqft.toLocaleString()} sqft</strong>${data.source ? ' — ' + escapeHtml(data.source) : ''}\n\n` : '';
-  container.innerHTML = `<div class="result-box ${cls}">${sqftLine}${escapeHtml(data.answer || '')}</div>`;
+  const sqftLine = data.sqft ? `<strong>${data.sqft.toLocaleString()} sqft</strong>${data.source ? ' — ' + escapeHtml(data.source) : ''}\n` : '';
+  const bedBathLine = (data.bedrooms || data.bathrooms) ? `${data.bedrooms || '—'} bed / ${data.bathrooms || '—'} bath\n\n` : '\n';
+  container.innerHTML = `<div class="result-box ${cls}">${sqftLine}${bedBathLine}${escapeHtml(data.answer || '')}</div>`;
 }
 
 /* Step 2: confirm sqft + climate */
@@ -1054,54 +1054,20 @@ function renderCfmStep() {
 
 /* Step 7: current duct tally vs required */
 function renderDuctTallyStep() {
-  const sqft = parseFloat(state.confirmedSqft);
-  const requiredCfm = requiredCfmForTons(furnaceTonsForSqft(sqft));
-
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <h2>Count the current ducts</h2>
-    <p class="sub">Count how many of each duct size connect to the plenum. We'll total the CFM and compare it to what's needed.</p>
-    <div class="duct-grid" id="duct-grid"></div>
-    <div id="duct-total-box"></div>
+    <h2>Current vent count</h2>
+    <p class="sub">How many vents/registers does the home currently have?</p>
+    <label class="field-label" for="current-vent-count-input">Total vents</label>
+    <input type="number" min="0" id="current-vent-count-input" placeholder="e.g. 10" value="${state.currentVentCount || ''}">
   `;
   bodyEl.appendChild(card);
 
-  const grid = card.querySelector('#duct-grid');
-  Object.keys(DUCT_CHART).forEach(size => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `<label>${size}" duct (${DUCT_CHART[size]} CFM each)</label>
-      <input type="number" min="0" data-size="${size}" value="${state.ductCounts[size] || ''}" placeholder="0">`;
-    grid.appendChild(wrap);
-  });
+  const input = card.querySelector('#current-vent-count-input');
+  input.addEventListener('input', () => { state.currentVentCount = input.value; saveState(); });
 
-  const totalBox = card.querySelector('#duct-total-box');
-
-  function recompute() {
-    let total = 0;
-    grid.querySelectorAll('input').forEach(inp => {
-      const size = inp.dataset.size;
-      const count = parseInt(inp.value) || 0;
-      state.ductCounts[size] = count;
-      total += count * DUCT_CHART[size];
-    });
-    saveState();
-    if (!requiredCfm) {
-      totalBox.innerHTML = '';
-      return;
-    }
-    const pct = total / requiredCfm;
-    const cls = pct >= 0.9 ? 'good' : 'bad';
-    const verdict = pct >= 0.9
-      ? 'Ductwork looks adequate for the recommended system.'
-      : `Ducts appear undersized for the recommended system — this is an upsell opportunity, not just a callback risk.`;
-    totalBox.innerHTML = `<div class="result-box ${cls}">Current total: <strong>${total.toLocaleString()} CFM</strong> vs. ${requiredCfm.toLocaleString()} CFM needed.\n${verdict}</div>`;
-  }
-
-  grid.querySelectorAll('input').forEach(inp => inp.addEventListener('input', recompute));
-  recompute();
-
-  navButtons(card, {});
+  navButtons(card, {onNext: () => { state.currentVentCount = input.value; }});
 }
 
 /* Vent/duct replacement count — drives quote line items directly */
@@ -1142,11 +1108,16 @@ function designTrunk(branchSizes) {
 
 function renderVentCountStep() {
   const v = state.ventsByType;
+  let prefilled = false;
+  if (v.small === '' && state.bathrooms) { v.small = String(state.bathrooms); prefilled = true; }
+  if (v.standard === '' && state.bedrooms) { v.standard = String(state.bedrooms); prefilled = true; }
+
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <h2>Count vents needing new ductwork</h2>
     <p class="sub">Count new-duct rooms by type — this drives both the duct/boot line items in the quote and the trunk sizing below.</p>
+    ${prefilled ? `<div class="result-box warn">Bedroom/bathroom counts pre-filled from the address lookup — confirm these match reality (not every bedroom/bathroom necessarily needs new ductwork, and this doesn't account for other rooms like living areas or kitchens).</div>` : ''}
     <label class="field-label" for="vents-small">Bathrooms, laundry rooms, walk-in closets (4" branch)</label>
     <input type="number" min="0" id="vents-small" placeholder="0" value="${v.small || ''}">
     <label class="field-label" for="vents-standard">Bedrooms, offices (6" branch)</label>

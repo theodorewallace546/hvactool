@@ -150,22 +150,25 @@ you actually performed.
 """
 
 SQFT_SYSTEM_PROMPT = """You are helping an HVAC sales rep find the square \
-footage of a specific property before a home visit. Use the web_search \
-tool to search for it — check Zillow, Redfin, Realtor.com, or public county \
-assessor records. Prefer county assessor records over listing sites when \
-they disagree, since listing sites sometimes round or include non-livable \
-space.
+footage AND bedroom/bathroom count of a specific property before a home \
+visit. Use the web_search tool to search for it — check Zillow, Redfin, \
+Realtor.com, or public county assessor records. Prefer county assessor \
+records over listing sites for square footage when they disagree, since \
+listing sites sometimes round or include non-livable space. Bedroom/\
+bathroom counts are fine to take from a listing site directly.
 
 Report what you find in one or two plain sentences, including which source \
-it came from. If you cannot find a confident figure, say so plainly rather \
-than guessing — a wrong number here can lead to a mis-sized HVAC \
-recommendation, and the rep will confirm it with the homeowner regardless, \
-so an honest "not found" is far more useful than a fabricated number.
+it came from. If you cannot find a confident figure for something, say so \
+plainly rather than guessing — a wrong number here can lead to a mis-sized \
+HVAC recommendation, and the rep will confirm it with the homeowner \
+regardless, so an honest "not found" is far more useful than a fabricated \
+number. It's fine to be confident about square footage but not bedroom/\
+bathroom count, or vice versa — report each independently.
 
 End your response with a fenced JSON block on its own, in exactly this \
 format (use null where you don't have a confident value):
 ```json
-{{"sqft": <number or null>, "source": "<short source name or null>", "confident": <true or false>}}
+{{"sqft": <number or null>, "source": "<short source name or null>", "confident": <true or false>, "bedrooms": <number or null>, "bathrooms": <number or null>}}
 ```
 """
 
@@ -300,6 +303,8 @@ def lookup_sqft():
         "sqft": parsed.get("sqft"),
         "source": parsed.get("source"),
         "confident": bool(parsed.get("confident")),
+        "bedrooms": parsed.get("bedrooms"),
+        "bathrooms": parsed.get("bathrooms"),
     })
 
 
