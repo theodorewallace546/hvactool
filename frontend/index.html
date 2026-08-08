@@ -337,8 +337,6 @@
   .room-row .room-size{width:70px; margin-bottom:0;}
   .room-row .room-rm{background:none; border:none; color:var(--bad-ink); cursor:pointer; font-size:1rem; padding:2px 6px; flex:0 0 auto;}
   .room-row-label{flex:1; font-size:.9rem; font-weight:600;}
-  .room-row-x{color:var(--muted); font-size:.82rem; flex:0 0 16px; text-align:center;}
-  .room-row-total{width:60px; text-align:right; font-size:.85rem; font-weight:700; flex:0 0 60px;}
   #add-room-btn{margin-top:4px;}
 
   /* Sidebar (projects) */
@@ -575,7 +573,7 @@ function defaultState() {
     currentVentCount: '',
     bedrooms: null,
     bathrooms: null,
-    roomList: [],            // [{id, name, size, roomCount, ventsPerRoom}, ...]
+    roomList: [],            // [{id, name, size, vents}, ...] one row per physical room
     asbestos: {photo: null, whiteMaterial: '', preBuilt: ''},
     ductCondition: {rating: '', note: '', photo: null},
     atticInsulation: {rating: '', note: '', photo: null, needsReplacement: false, atticSqft: ''},
@@ -1142,20 +1140,38 @@ function newRoomId() {
   return 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 }
 
+// Each row is ONE physical room, not a category with a count multiplier —
+// that's what let a rep specify "this one bedroom has 2 vents" instead of
+// only being able to bump a whole category at once.
 function buildDefaultRoomList() {
-  return [
+  const rows = [
     // Kitchens are sometimes small enough to only need a 6" branch, not
     // always 8" like other larger rooms — default to 6", rep bumps to 8"
     // if it's actually a big kitchen.
-    {id: newRoomId(), name: 'Kitchen', size: 6, roomCount: 1, ventsPerRoom: 1},
-    {id: newRoomId(), name: 'Living Room', size: 8, roomCount: 1, ventsPerRoom: 1},
-    {id: newRoomId(), name: 'Dining Room', size: 8, roomCount: 1, ventsPerRoom: 1},
-    {id: newRoomId(), name: 'Bedrooms', size: 6, roomCount: state.bedrooms || '', ventsPerRoom: 1},
-    {id: newRoomId(), name: 'Bathrooms', size: 4, roomCount: state.bathrooms || '', ventsPerRoom: 1},
+    {id: newRoomId(), name: 'Kitchen', size: 6, vents: 1},
+    {id: newRoomId(), name: 'Living Room', size: 8, vents: 1},
+    {id: newRoomId(), name: 'Dining Room', size: 8, vents: 1},
   ];
+  const bedroomCount = parseInt(state.bedrooms) || 1;
+  for (let i = 1; i <= bedroomCount; i++) {
+    rows.push({id: newRoomId(), name: `Bedroom ${i}`, size: 6, vents: 1});
+  }
+  const bathroomCount = parseInt(state.bathrooms) || 1;
+  for (let i = 1; i <= bathroomCount; i++) {
+    rows.push({id: newRoomId(), name: `Bathroom ${i}`, size: 4, vents: 1});
+  }
+  return rows;
 }
 
-/* Step: list the rooms getting new ductwork (name, count, branch size) */
+function roomSizeSelectHtml(r) {
+  return `<select class="room-size">
+    <option value="4" ${r.size === 4 ? 'selected' : ''}>4"</option>
+    <option value="6" ${r.size === 6 ? 'selected' : ''}>6"</option>
+    <option value="8" ${r.size === 8 ? 'selected' : ''}>8"</option>
+  </select>`;
+}
+
+/* Step: list the individual rooms getting new ductwork (name + branch size) */
 function renderRoomListStep() {
   if (!state.roomList.length) state.roomList = buildDefaultRoomList();
 
@@ -1163,7 +1179,7 @@ function renderRoomListStep() {
   card.className = 'card';
   card.innerHTML = `
     <h2>List the rooms</h2>
-    <p class="sub">List rooms getting new ductwork. Kitchen, living room, and dining room start pre-added at 1 each — bedrooms/bathrooms are pulled from the earlier address lookup. Adjust counts and branch sizes to match the actual home, and add any other rooms.</p>
+    <p class="sub">One row per room. Bedrooms/bathrooms are pre-added individually from the earlier address lookup (so each one can be adjusted on its own) — rename, resize, remove, or add rooms to match the actual home.</p>
     <div id="room-rows"></div>
     <button class="btn btn-secondary" id="add-room-btn">+ Add Room</button>
   `;
@@ -1175,12 +1191,7 @@ function renderRoomListStep() {
     rowsEl.innerHTML = state.roomList.map(r => `
       <div class="room-row" data-id="${r.id}">
         <input type="text" class="room-name" placeholder="Room name" value="${escapeHtml(r.name)}">
-        <input type="number" min="0" class="room-count" placeholder="Count" value="${r.roomCount}">
-        <select class="room-size">
-          <option value="4" ${r.size === 4 ? 'selected' : ''}>4"</option>
-          <option value="6" ${r.size === 6 ? 'selected' : ''}>6"</option>
-          <option value="8" ${r.size === 8 ? 'selected' : ''}>8"</option>
-        </select>
+        ${roomSizeSelectHtml(r)}
         <button class="room-rm" data-id="${r.id}" title="Remove">✕</button>
       </div>
     `).join('');
@@ -1189,7 +1200,6 @@ function renderRoomListStep() {
       const id = rowEl.dataset.id;
       const room = state.roomList.find(r => r.id === id);
       rowEl.querySelector('.room-name').addEventListener('input', (e) => { room.name = e.target.value; saveState(); });
-      rowEl.querySelector('.room-count').addEventListener('input', (e) => { room.roomCount = e.target.value; saveState(); });
       rowEl.querySelector('.room-size').addEventListener('change', (e) => { room.size = parseInt(e.target.value); saveState(); });
       rowEl.querySelector('.room-rm').addEventListener('click', () => {
         state.roomList = state.roomList.filter(r => r.id !== id);
@@ -1201,7 +1211,7 @@ function renderRoomListStep() {
   renderRows();
 
   card.querySelector('#add-room-btn').addEventListener('click', () => {
-    state.roomList.push({id: newRoomId(), name: '', size: 6, roomCount: 1, ventsPerRoom: 1});
+    state.roomList.push({id: newRoomId(), name: '', size: 6, vents: 1});
     saveState();
     renderRows();
   });
@@ -1209,7 +1219,7 @@ function renderRoomListStep() {
   navButtons(card, {});
 }
 
-/* Step: confirm vents per room, then run the trunk design calculator */
+/* Step: confirm vents (and re-confirm size) per individual room, then run the trunk design calculator */
 function renderVentCountStep() {
   if (!state.roomList.length) state.roomList = buildDefaultRoomList();
 
@@ -1217,7 +1227,7 @@ function renderVentCountStep() {
   card.className = 'card';
   card.innerHTML = `
     <h2>Confirm vents & duct design</h2>
-    <p class="sub">Confirm how many vents each room actually needs — larger rooms often need more than one. Room count × vents per room = total vents for that row.</p>
+    <p class="sub">Confirm how many vents each room actually needs, and its branch size — a bigger room may need more than one vent.</p>
     <div id="vent-rows"></div>
     <div id="trunk-design-box"></div>
   `;
@@ -1228,17 +1238,11 @@ function renderVentCountStep() {
 
   function recompute() {
     saveState();
-    rowsEl.querySelectorAll('.room-row').forEach(rowEl => {
-      const id = rowEl.dataset.id;
-      const room = state.roomList.find(r => r.id === id);
-      const total = (parseInt(room.roomCount) || 0) * (parseInt(room.ventsPerRoom) || 0);
-      rowEl.querySelector('.room-row-total').textContent = total;
-    });
 
     const branches = [];
     state.roomList.forEach(r => {
-      const total = (parseInt(r.roomCount) || 0) * (parseInt(r.ventsPerRoom) || 0);
-      for (let i = 0; i < total; i++) branches.push(r.size);
+      const vents = parseInt(r.vents) || 0;
+      for (let i = 0; i < vents; i++) branches.push(r.size);
     });
     if (!branches.length) { trunkBox.innerHTML = ''; return; }
 
@@ -1256,17 +1260,17 @@ function renderVentCountStep() {
   function renderRows() {
     rowsEl.innerHTML = state.roomList.map(r => `
       <div class="room-row" data-id="${r.id}">
-        <div class="room-row-label">${escapeHtml(r.name || 'Unnamed room')} (${r.size}")</div>
-        <span class="room-row-x">${r.roomCount || 0}×</span>
-        <input type="number" min="0" class="room-count room-vents-per" placeholder="Vents" value="${r.ventsPerRoom}">
-        <span class="room-row-total">0</span>
+        <div class="room-row-label">${escapeHtml(r.name || 'Unnamed room')}</div>
+        ${roomSizeSelectHtml(r)}
+        <input type="number" min="0" class="room-count room-vents-per" placeholder="Vents" value="${r.vents}">
       </div>
     `).join('');
 
     rowsEl.querySelectorAll('.room-row').forEach(rowEl => {
       const id = rowEl.dataset.id;
       const room = state.roomList.find(r => r.id === id);
-      rowEl.querySelector('.room-vents-per').addEventListener('input', (e) => { room.ventsPerRoom = e.target.value; recompute(); });
+      rowEl.querySelector('.room-size').addEventListener('change', (e) => { room.size = parseInt(e.target.value); recompute(); });
+      rowEl.querySelector('.room-vents-per').addEventListener('input', (e) => { room.vents = e.target.value; recompute(); });
     });
     recompute();
   }
@@ -1503,7 +1507,7 @@ function buildAutoQuoteItems() {
     addItem('A/C Removal & Disposal', 'variable', 1, null);
   }
 
-  const ventCount = state.roomList.reduce((sum, r) => sum + (parseInt(r.roomCount) || 0) * (parseInt(r.ventsPerRoom) || 0), 0);
+  const ventCount = state.roomList.reduce((sum, r) => sum + (parseInt(r.vents) || 0), 0);
   if (ventCount > 0) {
     addItem('Air Duct Replacement', 'per_unit', ventCount, null);
     addItem('Vent Boots Installation', 'per_unit', ventCount, null);
