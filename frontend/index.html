@@ -1163,6 +1163,19 @@ function buildDefaultRoomList() {
   return rows;
 }
 
+// A project saved before the room-list rework has rows in the old shape
+// (roomCount/ventsPerRoom categories, no individual `vents` field). Rather
+// than trying to carefully migrate that old shape field-by-field, just
+// detect it and rebuild fresh defaults - this is field-test data, not
+// customer records that need perfect preservation.
+function ensureCurrentRoomListShape() {
+  const isStale = state.roomList.some(r => r.vents === undefined);
+  if (!state.roomList.length || isStale) {
+    state.roomList = buildDefaultRoomList();
+    saveState();
+  }
+}
+
 function roomSizeSelectHtml(r) {
   return `<select class="room-size">
     <option value="4" ${r.size === 4 ? 'selected' : ''}>4"</option>
@@ -1173,7 +1186,7 @@ function roomSizeSelectHtml(r) {
 
 /* Step: list the individual rooms getting new ductwork (name + branch size) */
 function renderRoomListStep() {
-  if (!state.roomList.length) state.roomList = buildDefaultRoomList();
+  ensureCurrentRoomListShape();
 
   const card = document.createElement('div');
   card.className = 'card';
@@ -1221,7 +1234,7 @@ function renderRoomListStep() {
 
 /* Step: confirm vents (and re-confirm size) per individual room, then run the trunk design calculator */
 function renderVentCountStep() {
-  if (!state.roomList.length) state.roomList = buildDefaultRoomList();
+  ensureCurrentRoomListShape();
 
   const card = document.createElement('div');
   card.className = 'card';
