@@ -1130,18 +1130,22 @@ function renderVentCountStep() {
   let prefilled = false;
   if (v.small === '' && state.bathrooms) { v.small = String(state.bathrooms); prefilled = true; }
   if (v.standard === '' && state.bedrooms) { v.standard = String(state.bedrooms); prefilled = true; }
+  // Baseline assumption: living room, dining room, kitchen = 1 vent each
+  // to start. Rep adjusts from here — large rooms often need more than
+  // one vent, and not every home has all three as separate rooms.
+  if (v.large === '') { v.large = '3'; prefilled = true; }
 
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
     <h2>Count vents needing new ductwork</h2>
-    <p class="sub">Count new-duct rooms by type — this drives both the duct/boot line items in the quote and the trunk sizing below.</p>
-    ${prefilled ? `<div class="result-box warn">Bedroom/bathroom counts pre-filled from the address lookup — confirm these match reality (not every bedroom/bathroom necessarily needs new ductwork, and this doesn't account for other rooms like living areas or kitchens).</div>` : ''}
+    <p class="sub">Count vents by type — this drives both the duct/boot line items in the quote and the trunk sizing below.</p>
+    ${prefilled ? `<div class="result-box warn">Pre-filled as a starting point — bedrooms/bathrooms from the address lookup, larger rooms defaulted to 3 (living room, dining room, kitchen). Confirm all three against the actual home: not every bedroom/bathroom necessarily needs new ductwork, the home may not have all three common areas as separate rooms, and larger rooms often need more than one vent — adjust the count up if so.</div>` : ''}
     <label class="field-label" for="vents-small">Bathrooms, laundry rooms, walk-in closets (4" branch)</label>
     <input type="number" min="0" id="vents-small" placeholder="0" value="${v.small || ''}">
     <label class="field-label" for="vents-standard">Bedrooms, offices (6" branch)</label>
     <input type="number" min="0" id="vents-standard" placeholder="0" value="${v.standard || ''}">
-    <label class="field-label" for="vents-large">Larger rooms (8" branch)</label>
+    <label class="field-label" for="vents-large">Living room, dining room, kitchen, and other larger rooms — count vents needed, not just rooms (8" branch each)</label>
     <input type="number" min="0" id="vents-large" placeholder="0" value="${v.large || ''}">
     <div id="trunk-design-box"></div>
   `;
